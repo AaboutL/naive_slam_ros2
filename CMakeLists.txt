@@ -9,20 +9,24 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 
+set(ros2_deps 
+rclcpp
+std_msgs
+sensor_msgs
+geometry_msgs
+cv_bridge
+)
 
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
-
-# set(G2O_ROOT "/home/parallels/3rdparty/g2o")
-# FILE(GLOB G2O_LIBS ${G2O_ROOT}/lib/*.so)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}/include
         ${EIGEN3_INCLUDE_DIR}
         ${OpenCV_INCLUDE_DIRS}
-        # ${G2O_ROOT}/include
 )
 
 FILE(GLOB CPPS ${PROJECT_SOURCE_DIR}/src/*)
@@ -35,10 +39,20 @@ target_link_libraries(feature_tracking
         ${G2O_LIBS}
         )
 
-ament_target_dependencies(feature_tracking rclcpp std_msgs sensor_msgs cv_bridge)
+ament_target_dependencies(feature_tracking  ${ros2_deps})
 
 add_executable(feature_tracking_node feature_tracking_node.cpp)
 target_link_libraries(feature_tracking_node feature_tracking)
+ament_target_dependencies(feature_tracking_node ${ros2_deps})
 
+install(TARGETS
+  feature_tracking
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+
+install(TARGETS
+  feature_tracking_node 
+  DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

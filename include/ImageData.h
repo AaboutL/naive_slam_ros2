@@ -17,13 +17,13 @@ public:
     ImageData(const cv::Mat &img,
               const cv::Mat& K, const cv::Mat& distCoef,
               int imgWidth, int imgHeight, int cellSize, int gridRows, int gridCols,
-              std::shared_ptr<ORBextractor> extractor);
+              std::shared_ptr<ORBextractor> pORBextractor);
 
     int SearchGrid(const cv::Point2f &pt2d, const cv::Mat &description,
                     float radius, int &matchedId);
 
 private:
-    void ExtractORB(const cv::Mat &img);
+    // void ExtractORB(const cv::Mat &img);
     void UndistortKeyPoints();
     void AssignGrid();
     int DescriptorDistance(const cv::Mat &a, const cv::Mat &b);
@@ -50,8 +50,6 @@ public:
     cv::Mat mDescriptors;
     std::vector<long unsigned int> mvChainIds;
     std::vector<int> mvChainLens;
-
-    std::shared_ptr<ORBextractor> mpORBextractor;
 };
 
 }

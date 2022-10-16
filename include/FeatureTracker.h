@@ -17,11 +17,14 @@ class FeatureTracker {
 public:
     FeatureTracker(const std::string &strParamFile);
     void Track(const cv::Mat& img, std::vector<long unsigned int>& vChainIds,
-               std::vector<cv::Point2f>& vPtsUn, std::vector<cv::Point2f>& vPts);
+               std::vector<cv::Point2f>& vPtsUn, std::vector<cv::Point2f>& vPts,
+               std::vector<int>& vChainLens);
+
+    cv::Mat DrawMatches(const std::string& winName="");
+
+private:
     void FindMatches();
-    void PackingResult(std::vector<long unsigned int>& vChainIds,
-                       std::vector<cv::Point2f>& vPtsUn,
-                       std::vector<cv::Point2f>& vPts);
+
 
 private:
     bool bFirst;

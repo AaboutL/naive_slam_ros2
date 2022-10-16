@@ -14,27 +14,27 @@ ImageData::ImageData(const ImageData& imageData):
     mvKPs(imageData.mvKPs), mvKPsUn(imageData.mvKPsUn),
     mvPts(imageData.mvPts), mvPtsUn(imageData.mvPtsUn),
     mDescriptors(imageData.mDescriptors.clone()),
-    mvChainIds(imageData.mvChainIds), mvChainLens(imageData.mvChainLens),
-    mpORBextractor(imageData.mpORBextractor){
+    mvChainIds(imageData.mvChainIds), mvChainLens(imageData.mvChainLens){
 }
 
 ImageData::ImageData(const cv::Mat &img,
              const cv::Mat& K, const cv::Mat& distCoef,
              int imgWidth, int imgHeight, int cellSize, int gridRows, int gridCols,
-             std::shared_ptr<ORBextractor> extractor) :
-        mImg(img.clone()), mK(K.clone()),
-        mDistCoef(distCoef.clone()),
-        mImgWidth(imgWidth), mImgHeight(imgHeight), mCellSize(cellSize), mGridRows(gridRows),
-        mGridCols(gridCols),
-        mpORBextractor(extractor) {
+             std::shared_ptr<ORBextractor> pORBextractor) :
+        mImg(img.clone()), mK(K.clone()), mDistCoef(distCoef.clone()),
+        mImgWidth(imgWidth), mImgHeight(imgHeight), mCellSize(cellSize), 
+        mGridRows(gridRows), mGridCols(gridCols) {
 
-    ExtractORB(img);
+    // ExtractORB(img);
+    (*pORBextractor)(img, cv::Mat(), mvKPs, mDescriptors);
+    
     N = mvKPs.size();
     UndistortKeyPoints();
 
     mvPts.resize(N);
     mvPtsUn.resize(N);
     mvChainIds.resize(N);
+    mvChainLens.resize(N);
     for (size_t i = 0; i < N; i++) {
         mvPts[i] = mvKPs[i].pt;
         mvPtsUn[i] = mvKPsUn[i].pt;
@@ -46,12 +46,13 @@ ImageData::ImageData(const cv::Mat &img,
     for (int i = 0; i < mGridRows; i++) {
         mGrid[i] = new std::vector<size_t>[mGridCols];
     }
+
     AssignGrid();
 }
 
-void ImageData::ExtractORB(const cv::Mat &img) {
-    (*mpORBextractor)(img, cv::Mat(), mvKPs, mDescriptors);
-}
+// void ImageData::ExtractORB(const cv::Mat &img) {
+//     (*mpORBextractor)(img, cv::Mat(), mvKPs, mDescriptors);
+// }
 
 void ImageData::UndistortKeyPoints() {
     if (mDistCoef.at<float>(0) == 0.0) {
