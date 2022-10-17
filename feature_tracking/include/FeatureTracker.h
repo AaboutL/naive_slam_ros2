@@ -24,7 +24,7 @@ public:
 
 private:
     void FindMatches();
-
+    void RejectByFundamental();
 
 private:
     bool bFirst;

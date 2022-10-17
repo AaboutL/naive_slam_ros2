@@ -49,6 +49,7 @@ void FeatureTracker::Track(const cv::Mat& img,
     else{
         FindMatches();
         // DrawMatches("Matches");
+        RejectByFundamental();
         mPrevImageData = ImageData(mCurrImageData);
     }
 
@@ -75,7 +76,7 @@ void FeatureTracker::FindMatches(){
         cv::Mat description = mPrevImageData.mDescriptors.row(i);
         float radiusTh = 15.0;
         int curPtId;
-        int bestDist = mCurrImageData.SearchGrid(pt, description, radiusTh, curPtId);
+        int bestDist = mCurrImageData.SearchGrid(pt, description, radiusTh*6, curPtId);
         if (bestDist < 50) {
             if (vMatches21[curPtId] == -1) {
                 vMatches12[i] = curPtId;
@@ -119,6 +120,54 @@ void FeatureTracker::FindMatches(){
     }
 }
 
+void FeatureTracker::RejectByFundamental(){
+    std::unordered_map<int, std::pair<cv::Point2f, cv::Point2f>> matchedPtsUn;
+    for(int i = 0; i < mCurrImageData.N; i++){
+        if(mCurrImageData.mvChainLens[i] >= 2){
+            matchedPtsUn[mCurrImageData.mvChainIds[i]] = std::make_pair(cv::Point2f(), mCurrImageData.mvPtsUn[i]);
+        }
+    }
+
+    for(int i = 0; i < mPrevImageData.N; i++){
+        if(matchedPtsUn.find(mPrevImageData.mvChainIds[i]) != matchedPtsUn.end()){
+            matchedPtsUn[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPtsUn[i];
+        }
+    }
+
+    std::vector<cv::Point2f> vPrevPtsUn, vCurrPtsUn, vPG, vCG;
+    std::unordered_map<long unsigned int, int> chainIdDict;
+    int i = 0;
+    for (auto& [k, v] : matchedPtsUn){
+        vPrevPtsUn.emplace_back(v.first);
+        vCurrPtsUn.emplace_back(v.second);
+        chainIdDict[k] = i;
+        i++;
+    }
+
+    std::vector<uchar> status;
+    cv::findFundamentalMat(vPrevPtsUn, vCurrPtsUn, cv::FM_RANSAC, 1, 0.99, status);
+
+    // deal with current image data
+    for(int i = 0; i < mCurrImageData.N; i++){
+        auto chainId = mCurrImageData.mvChainIds[i];
+        if(status[chainIdDict[chainId]] == 0){ // This point is rejected by F matrix, so it should be reset.
+            mCurrImageData.mvChainIds[i] = -1;
+            mCurrImageData.mvChainLens[i] = 1;
+        }
+    }
+
+    // deal with previous image data
+    for(int i = 0; i < mPrevImageData.N; i++){
+        auto chainId = mPrevImageData.mvChainIds[i];
+        if(status[chainIdDict[chainId]] == 0){
+            mPrevImageData.mvChainLens[i]--;
+            if(mPrevImageData.mvChainLens[i] < 2){
+                mPrevImageData.mvChainIds[i] = -1;
+            }
+        }
+    }
+}
+
 cv::Mat FeatureTracker::DrawMatches(const std::string& winName){
     int w = mImgWidth;
     int h = mImgHeight;
@@ -147,6 +196,7 @@ cv::Mat FeatureTracker::DrawMatches(const std::string& winName){
             matchedPts[mCurrImageData.mvChainIds[i]] = std::make_pair(cv::Point2f(), mCurrImageData.mvPts[i]);
             matchedPtsUn[mCurrImageData.mvChainIds[i]] = std::make_pair(cv::Point2f(), mCurrImageData.mvPtsUn[i]);
         }
+        cv::circle(imgShow, (mCurrImageData.mvPts[i] + cv::Point2f(w, 0)), 3, cv::Scalar(0, 255, 0));
     }
 
     for(int i = 0; i < mPrevImageData.N; i++){
@@ -154,40 +204,16 @@ cv::Mat FeatureTracker::DrawMatches(const std::string& winName){
             matchedPts[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPts[i];
             matchedPtsUn[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPtsUn[i];
         }
+        cv::circle(imgShow, mPrevImageData.mvPts[i], 3, cv::Scalar(0, 255, 0));
     }
-    int beforeNum = matchedPts.size();
+    int trackedNum = matchedPts.size();
 
     for (auto& [k, v] : matchedPts){
         cv::circle(imgShow, v.first, 3, cv::Scalar(0, 255, 0));
         cv::circle(imgShow, (v.second + cv::Point2f(w, 0)), 3, cv::Scalar(0, 255, 0));
         cv::line(imgShow, v.first, (v.second + cv::Point2f(w, 0)), cv::Scalar(0, 0, 255));
     }
-
-    std::vector<cv::Point2f> vPrevPtsUn, vCurrPtsUn, vPG, vCG;
-    std::vector<int> ids;
-    for (auto& [k, v] : matchedPtsUn){
-        vPrevPtsUn.emplace_back(v.first);
-        vCurrPtsUn.emplace_back(v.second);
-        ids.push_back(k);
-    }
-
-    std::vector<uchar> status;
-    cv::findFundamentalMat(vPrevPtsUn, vCurrPtsUn, cv::FM_RANSAC, 1, 0.99, status);
-    for(int i = 0; i < status.size(); i++){
-        if(status[i] == 1){
-            vPG.emplace_back(matchedPts[ids[i]].first);
-            vCG.emplace_back(matchedPts[ids[i]].second);
-        }
-    }
-    int afterNum = vPG.size();
-
-    for(int i = 0; i < vPG.size(); i++){
-        cv::circle(imgShow, vPG[i], 3, cv::Scalar(0, 255, 0));
-        cv::circle(imgShow, (vCG[i] + cv::Point2f(w, 0)), 3, cv::Scalar(0, 255, 0));
-        cv::line(imgShow, vPG[i], (vCG[i] + cv::Point2f(w, 0)), cv::Scalar(255, 0, 0));
-    }
-    cv::putText(imgShow, std::to_string(beforeNum), cv::Point2i(20, 20), 1, 1, cv::Scalar(0, 0, 255));
-    cv::putText(imgShow, std::to_string(afterNum), cv::Point2i(20, 30), 1, 1, cv::Scalar(0, 0, 255));
+    cv::putText(imgShow, std::to_string(trackedNum), cv::Point2i(20, 20), 1, 1, cv::Scalar(0, 0, 255));
 
     // cv::imshow(winName, imgShow);
     // cv::waitKey(10);

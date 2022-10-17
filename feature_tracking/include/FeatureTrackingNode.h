@@ -17,6 +17,7 @@ using std::placeholders::_1;
 
 
 namespace Naive_SLAM_ROS {
+
 class FeatureTrackingNode : public rclcpp::Node {
 public:
     FeatureTrackingNode(const std::string& strParamFile);
