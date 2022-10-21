@@ -2,6 +2,9 @@
 // Created by hanfuyong on 2022/10/12.
 //
 
+#ifndef NAIVESLAMROS_FEATURETRACKINGNODE_H
+#define NAIVESLAMROS_FEATURETRACKINGNODE_H
+
 #include <iostream>
 
 #include <rclcpp/rclcpp.hpp>
@@ -35,3 +38,5 @@ private:
 };
 
 } // namespace naive_slam_ros
+
+#endif

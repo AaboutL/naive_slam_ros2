@@ -2,15 +2,14 @@
 
 namespace Naive_SLAM_ROS {
 
-FeatureTrackingNode::FeatureTrackingNode(const std::string& strParamFile) : Node("feature_tracking_node"){
+FeatureTrackingNode::FeatureTrackingNode(const std::string& strParamFile) : 
+    mnPubNum(0), Node("feature_tracking_node"){
     mpFT = std::make_shared<FeatureTracker>(strParamFile);
     pc_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud>("point_cloud", 1000);
     visTrack_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("vis_track", 1000);
 
     im_subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/cam0/image_raw", 100, 
         std::bind(&FeatureTrackingNode::FeatureTrackingCallback, this, std::placeholders::_1));
-
-    mnPubNum = 0;
 }
 
 
@@ -20,9 +19,10 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
     std::vector<long unsigned int> vChainIds;
     std::vector<cv::Point2f> vPtsUn;
     std::vector<cv::Point2f> vPts;
+    std::vector<cv::Point2f> vPtUnOffsets;
     std::vector<int> vChainLens;
 
-    mpFT->Track(cvImgPtr->image, vChainIds, vPtsUn, vPts, vChainLens);
+    mpFT->Track(cvImgPtr->image, vChainIds, vPtsUn, vPts, vPtUnOffsets, vChainLens);
 
     sensor_msgs::msg::PointCloud pcMsg = sensor_msgs::msg::PointCloud();
     pcMsg.header = img_msg->header;
@@ -31,6 +31,8 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
     sensor_msgs::msg::ChannelFloat32 chainIds;
     sensor_msgs::msg::ChannelFloat32 pts_u;
     sensor_msgs::msg::ChannelFloat32 pts_v;
+    sensor_msgs::msg::ChannelFloat32 pts_u_offset;
+    sensor_msgs::msg::ChannelFloat32 pts_v_offset;
 
     for(size_t i = 0; i < vChainIds.size(); i++){
         if(vChainLens[i] > 1){
@@ -43,11 +45,15 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
             chainIds.values.emplace_back(vChainIds[i]);
             pts_u.values.emplace_back(vPts[i].x);
             pts_v.values.emplace_back(vPts[i].y);
+            pts_u_offset.values.emplace_back(vPtUnOffsets[i].x);
+            pts_v_offset.values.emplace_back(vPtUnOffsets[i].y);
         }
     }
     pcMsg.channels.emplace_back(chainIds);
     pcMsg.channels.emplace_back(pts_u);
     pcMsg.channels.emplace_back(pts_v);
+    pcMsg.channels.emplace_back(pts_u_offset);
+    pcMsg.channels.emplace_back(pts_v_offset);
 
     RCLCPP_DEBUG(this->get_logger(), "publish ", pcMsg.header.stamp.sec);
     pc_publisher_->publish(pcMsg);

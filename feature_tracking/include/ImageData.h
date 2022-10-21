@@ -2,8 +2,8 @@
 // Created by hanfuyong on 2022/10/13.
 //
 
-#ifndef NAIVE_SLAM_ROS_IMAGEDATA_H
-#define NAIVE_SLAM_ROS_IMAGEDATA_H
+#ifndef NAIVESLAMROS_IMAGEDATA_H
+#define NAIVESLAMROS_IMAGEDATA_H
 
 #include <opencv2/opencv.hpp>
 #include "ORBextractor.h"
@@ -47,6 +47,7 @@ public:
     std::vector<cv::KeyPoint> mvKPsUn;
     std::vector<cv::Point2f> mvPts;
     std::vector<cv::Point2f> mvPtsUn;
+    std::vector<cv::Point2f> mvPtUnOffsets;
     cv::Mat mDescriptors;
     std::vector<long unsigned int> mvChainIds;
     std::vector<int> mvChainLens;

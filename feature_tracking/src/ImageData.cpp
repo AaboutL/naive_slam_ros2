@@ -13,6 +13,7 @@ ImageData::ImageData(const ImageData& imageData):
     mGridRows(imageData.mGridRows), mGridCols(imageData.mGridCols),
     mvKPs(imageData.mvKPs), mvKPsUn(imageData.mvKPsUn),
     mvPts(imageData.mvPts), mvPtsUn(imageData.mvPtsUn),
+    mvPtUnOffsets(imageData.mvPtUnOffsets),
     mDescriptors(imageData.mDescriptors.clone()),
     mvChainIds(imageData.mvChainIds), mvChainLens(imageData.mvChainLens){
 }
@@ -33,11 +34,13 @@ ImageData::ImageData(const cv::Mat &img,
 
     mvPts.resize(N);
     mvPtsUn.resize(N);
+    mvPtUnOffsets.resize(N);
     mvChainIds.resize(N);
     mvChainLens.resize(N);
     for (size_t i = 0; i < N; i++) {
         mvPts[i] = mvKPs[i].pt;
         mvPtsUn[i] = mvKPsUn[i].pt;
+        mvPtUnOffsets[i] = cv::Point2f(0, 0);
         mvChainIds[i] = -1;
         mvChainLens[i] = 1;
     }

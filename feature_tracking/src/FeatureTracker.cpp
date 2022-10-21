@@ -39,6 +39,7 @@ void FeatureTracker::Track(const cv::Mat& img,
                            std::vector<long unsigned int>& vChainIds,
                            std::vector<cv::Point2f>& vPtsUn,
                            std::vector<cv::Point2f>& vPts,
+                           std::vector<cv::Point2f>& vPtUnOffsets,
                            std::vector<int>& vChainLens){
     mCurrImageData = ImageData(img, mK, mDistCoef, mImgWidth, mImgHeight,
                                mCellSize, mGridRows, mGridCols, mpORBextractor);
@@ -57,6 +58,7 @@ void FeatureTracker::Track(const cv::Mat& img,
     vPtsUn = mCurrImageData.mvPtsUn;
     vPts = mCurrImageData.mvPts;
     vChainLens = mCurrImageData.mvChainLens;
+    vPtUnOffsets = mCurrImageData.mvPtUnOffsets;
 }
 
 void FeatureTracker::FindMatches(){
@@ -122,15 +124,19 @@ void FeatureTracker::FindMatches(){
 
 void FeatureTracker::RejectByFundamental(){
     std::unordered_map<int, std::pair<cv::Point2f, cv::Point2f>> matchedPtsUn;
+    std::unordered_map<int, int> mChainIdWithPtId;
     for(int i = 0; i < mCurrImageData.N; i++){
         if(mCurrImageData.mvChainLens[i] >= 2){
             matchedPtsUn[mCurrImageData.mvChainIds[i]] = std::make_pair(cv::Point2f(), mCurrImageData.mvPtsUn[i]);
+            mChainIdWithPtId[mCurrImageData.mvChainIds[i]] = i;
         }
     }
 
     for(int i = 0; i < mPrevImageData.N; i++){
         if(matchedPtsUn.find(mPrevImageData.mvChainIds[i]) != matchedPtsUn.end()){
             matchedPtsUn[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPtsUn[i];
+            mCurrImageData.mvPtUnOffsets[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] = 
+                mCurrImage.Data.mvPtsUn[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] - mPrevImageData.mvPtsUn[i];
         }
     }
 
@@ -153,6 +159,7 @@ void FeatureTracker::RejectByFundamental(){
         if(status[chainIdDict[chainId]] == 0){ // This point is rejected by F matrix, so it should be reset.
             mCurrImageData.mvChainIds[i] = -1;
             mCurrImageData.mvChainLens[i] = 1;
+            mCurrImageData.mvPtUnOffsets[i] = cv::Point2f(0, 0);
         }
     }
 
