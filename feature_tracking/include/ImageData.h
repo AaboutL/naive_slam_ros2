@@ -49,7 +49,7 @@ public:
     std::vector<cv::Point2f> mvPtsUn;
     std::vector<cv::Point2f> mvPtUnOffsets;
     cv::Mat mDescriptors;
-    std::vector<long unsigned int> mvChainIds;
+    std::vector<unsigned long> mvChainIds;
     std::vector<int> mvChainLens;
 };
 

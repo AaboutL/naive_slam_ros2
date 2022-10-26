@@ -16,7 +16,7 @@ FeatureTrackingNode::FeatureTrackingNode(const std::string& strParamFile) :
 void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image::ConstSharedPtr& img_msg) {
     cv_bridge::CvImageConstPtr cvImgPtr = cv_bridge::toCvCopy(img_msg);
 
-    std::vector<long unsigned int> vChainIds;
+    std::vector<unsigned long> vChainIds;
     std::vector<cv::Point2f> vPtsUn;
     std::vector<cv::Point2f> vPts;
     std::vector<cv::Point2f> vPtUnOffsets;
@@ -55,7 +55,6 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
     pcMsg.channels.emplace_back(pts_u_offset);
     pcMsg.channels.emplace_back(pts_v_offset);
 
-    RCLCPP_DEBUG(this->get_logger(), "publish ", pcMsg.header.stamp.sec);
     pc_publisher_->publish(pcMsg);
 
     if(mnPubNum != 0){

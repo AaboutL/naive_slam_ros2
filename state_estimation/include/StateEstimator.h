@@ -10,12 +10,15 @@
 #include "Frame.h"
 #include "IMU.h"
 #include "FeatureManager.h"
+#include "GeometryFunc.h"
+#include "Optimizer.h"
 
 namespace Naive_SLAM_ROS {
 
 class StateEstimator{
 public:
-    StateEstimator(int windowSize);
+    StateEstimator(const std::string& strParamFile);
+    StateEstimator(int windowSize, const cv::Mat& K);
 
     enum State{
         INIT = 1,
@@ -26,14 +29,17 @@ public:
     void Estimate(const std::pair<Frame, std::vector<IMU>>& pMeas);
 
     bool VisualInit();
+    int SolveRelativePose(const std::vector<cv::Vec2f> &vPts0, const std::vector<cv::Vec2f> &vPts1,
+                          cv::Mat &R10, cv::Mat &t10);
 
 private:
-    const int mWindowSize;
-    long unsigned int mFrameId;
+    int mWindowSize;
+    unsigned long mFrameId;
     State mState;
-    // std::unordered_map<long unsigned int, FeatureChain> mmChains;
     FeatureManager* mpFM;
     std::deque<Frame> mqFrames;
+
+    cv::Mat mK;
 };
 
     

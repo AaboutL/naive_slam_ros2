@@ -7,21 +7,27 @@
 namespace Naive_SLAM_ROS{
 
 StateEstimationNode::StateEstimationNode(const std::string& strParamFile):
+mtStateEstimation(std::bind(&StateEstimationNode::Run, this)),
 Node("state_estimation_node"){
-    pc_subscriptor_ = this->create_subscription<sensor_msgs::msg::PointCloud>("point_cloud", 100, 
+    mpEstimator = new StateEstimator(strParamFile);
+
+    pc_subscriptor_ = this->create_subscription<sensor_msgs::msg::PointCloud>("/feature_tracking/point_cloud", 100, 
         std::bind(&StateEstimationNode::PointCloudCallback, this, std::placeholders::_1));
 
     imu_subscriptor_ = this->create_subscription<sensor_msgs::msg::Imu>("/imu0", 100, 
         std::bind(&StateEstimationNode::IMUCallback, this, std::placeholders::_1));
+
+    kf_pose_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("keyframe_pose", 1000);
+    
 }
 
 void StateEstimationNode::PointCloudCallback(const sensor_msgs::msg::PointCloud::ConstSharedPtr& pc_msg){
-    std::vector<long unsigned int> vChainIds;
+    std::vector<unsigned long> vChainIds;
     // std::vector<cv::Point2f> vPtsUn, vPts, vPtUnOffsets;
     std::vector<cv::Vec3f> vPtsUn;
     std::vector<cv::Vec2f> vPts, vPtUnOffsets;
     for(int i = 0; i < pc_msg->points.size(); i++){
-        long unsigned int chainId = pc_msg->channels[0].values[i];
+        unsigned long chainId = pc_msg->channels[0].values[i];
         cv::Vec3f ptUn(pc_msg->points[i].x, pc_msg->points[i].y, pc_msg->points[i].z);
         cv::Vec2f pt(pc_msg->channels[1].values[i], pc_msg->channels[2].values[i]);
         cv::Vec2f ptUnOffset(pc_msg->channels[3].values[i], pc_msg->channels[4].values[i]);
@@ -29,11 +35,18 @@ void StateEstimationNode::PointCloudCallback(const sensor_msgs::msg::PointCloud:
         vPtsUn.emplace_back(ptUn);
         vPts.emplace_back(pt);
         vPtUnOffsets.emplace_back(ptUnOffset);
-
     }
 
     Frame frame(pc_msg->header.stamp.nanosec, vChainIds, vPtsUn, vPts, vPtUnOffsets);
+    if(frame.mTcw.empty()) 
+        std::cout << "frame mTcw empty" << std::endl;
+    else
+        std::cout << "frame mTcw not empty" << std::endl;
+
+    mMutexBuffer.lock();
     mqFrames.emplace(frame);
+    mMutexBuffer.unlock();
+    mConditionVar.notify_one();
 }
 
 void StateEstimationNode::IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPtr& imu_msg){
@@ -46,17 +59,24 @@ void StateEstimationNode::IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPt
 
     IMU imu(imu_msg->header.stamp.nanosec, Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz));
     
+    mMutexBuffer.lock();
     mqIMUs.emplace(imu);
+    mMutexBuffer.unlock();
+    mConditionVar.notify_one();
 }
 
-void StateEstimationNode::BindIMUAndImage(){
+std::vector<std::pair<Frame, std::vector<IMU>>> StateEstimationNode::BindIMUAndImage(){
+    std::vector<std::pair<Frame, std::vector<IMU>>> mvMeasurements;
     while(true){
         if(mqIMUs.empty() || mqFrames.empty()){
-            continue;
+            // continue;
+            // until mqIMUs or mqFrames was all taken off, then return
+            return mvMeasurements;
         }
         if(mqIMUs.back().miTimestamp <= mqFrames.front().miTimestamp){
             // The newest imu in mqIMUs is older than the oldest frame in mqFrames, just wait for more imu
-            continue;
+            // continue;
+            return mvMeasurements;
         }
         if(mqIMUs.front().miTimestamp <= mqFrames.front().miTimestamp){
             // The oldest imu came after the oldest frame, so the frames that came before imu need to be removed.
@@ -73,15 +93,23 @@ void StateEstimationNode::BindIMUAndImage(){
             mqIMUs.pop();
         }
         vIMUs.emplace_back(mqIMUs.front());
-        mqMeasurements.emplace(std::make_pair(oneFrame, vIMUs));
+        mvMeasurements.emplace_back(std::make_pair(oneFrame, vIMUs));
     }
+    return mvMeasurements;
 }
 
 void StateEstimationNode::Run(){
-    while(!mqMeasurements.empty()){
-        std::pair<Frame, std::vector<IMU>> pMeas = mqMeasurements.front();
-        mqMeasurements.pop();
-
+    while(true){
+        std::vector<std::pair<Frame, std::vector<IMU>>> vMeasurements;
+        std::unique_lock<std::mutex> ulk(mMutexBuffer);
+        mConditionVar.wait(ulk, [&]
+        {
+            return (vMeasurements = BindIMUAndImage()).size() != 0;
+        });
+        ulk.unlock();
+        for(auto & meas : vMeasurements){
+            mpEstimator->Estimate(meas);
+        }
     }
 }
 

@@ -11,8 +11,13 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <nav_msgs/msg/odometry.hpp>
 
+#include <thread>
 #include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
 
 #include "Frame.h"
 #include "IMU.h"
@@ -27,18 +32,24 @@ public:
 private:
     void PointCloudCallback(const sensor_msgs::msg::PointCloud::ConstSharedPtr& pc_msg);
     void IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPtr& imu_msg);
-    void BindIMUAndImage();
+    std::vector<std::pair<Frame, std::vector<IMU>>> BindIMUAndImage();
     void Run();
     void ProcessFrame(Frame& frame);
 
 private:
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud>::SharedPtr pc_subscriptor_;
-    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscriptor_;
 
     std::queue<Frame> mqFrames;
     std::queue<IMU> mqIMUs;
-    std::queue<std::pair<Frame, std::vector<IMU>>> mqMeasurements;
 
+    StateEstimator* mpEstimator;
+
+    std::mutex mMutexBuffer;
+    std::condition_variable mConditionVar;
+    std::thread mtStateEstimation;
+
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud>::SharedPtr pc_subscriptor_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscriptor_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr kf_pose_publisher_;
 };
 
 

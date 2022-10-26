@@ -1,0 +1,13 @@
+launch
+
+- node
+    pkg: "feature_tracking"
+    exec: "feature_tracking_node"
+    name: "feature_tracking_node"
+    namespace: "feature_tracking"
+
+- node:
+    pkg: "state_estimation"
+    exec: "state_estimation_node"
+    name: "state_estimation_node"
+    namespace: "state_estimation"

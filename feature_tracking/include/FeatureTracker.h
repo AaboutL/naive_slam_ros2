@@ -16,7 +16,7 @@ namespace Naive_SLAM_ROS {
 class FeatureTracker {
 public:
     FeatureTracker(const std::string &strParamFile);
-    void Track(const cv::Mat& img, std::vector<long unsigned int>& vChainIds,
+    void Track(const cv::Mat& img, std::vector<unsigned long>& vChainIds,
                std::vector<cv::Point2f>& vPtsUn, std::vector<cv::Point2f>& vPts,
                std::vector<cv::Point2f>& vPtUnOffsets,
                std::vector<int>& vChainLens);
@@ -30,7 +30,7 @@ private:
 private:
     bool bFirst;
 
-    long unsigned int mnChainId;
+    unsigned long mnChainId;
 
     cv::Mat mK;
     cv::Mat mDistCoef;

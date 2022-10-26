@@ -11,6 +11,7 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 set(ros2_deps 
 rclcpp
@@ -18,10 +19,12 @@ std_msgs
 sensor_msgs
 geometry_msgs
 cv_bridge
+nav_msgs
 )
 
 find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(Ceres REQUIRED)
 
 set(G2O_ROOT "/home/parallels/3rdparty/g2o")
 file(GLOB G2O_LIBS ${G2O_ROOT}/lib/*.so)
@@ -41,6 +44,7 @@ add_library(${PROJECT_NAME} SHARED
 target_link_libraries(${PROJECT_NAME}
         ${OpenCV_LIBS}
         ${G2O_LIBS}
+        /usr/lib/aarch64-linux-gnu/libglog.so
         )
 
 ament_target_dependencies(${PROJECT_NAME} ${ros2_deps})

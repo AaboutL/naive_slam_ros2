@@ -36,7 +36,7 @@ FeatureTracker::FeatureTracker(const std::string &strParamFile):
 }
 
 void FeatureTracker::Track(const cv::Mat& img, 
-                           std::vector<long unsigned int>& vChainIds,
+                           std::vector<unsigned long>& vChainIds,
                            std::vector<cv::Point2f>& vPtsUn,
                            std::vector<cv::Point2f>& vPts,
                            std::vector<cv::Point2f>& vPtUnOffsets,
@@ -136,12 +136,12 @@ void FeatureTracker::RejectByFundamental(){
         if(matchedPtsUn.find(mPrevImageData.mvChainIds[i]) != matchedPtsUn.end()){
             matchedPtsUn[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPtsUn[i];
             mCurrImageData.mvPtUnOffsets[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] = 
-                mCurrImage.Data.mvPtsUn[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] - mPrevImageData.mvPtsUn[i];
+                mCurrImageData.mvPtsUn[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] - mPrevImageData.mvPtsUn[i];
         }
     }
 
     std::vector<cv::Point2f> vPrevPtsUn, vCurrPtsUn, vPG, vCG;
-    std::unordered_map<long unsigned int, int> chainIdDict;
+    std::unordered_map<unsigned long, int> chainIdDict;
     int i = 0;
     for (auto& [k, v] : matchedPtsUn){
         vPrevPtsUn.emplace_back(v.first);
