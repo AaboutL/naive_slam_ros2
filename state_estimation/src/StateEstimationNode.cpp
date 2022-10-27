@@ -104,7 +104,9 @@ void StateEstimationNode::Run(){
         });
         ulk.unlock();
         for(auto & meas : vMeasurements){
+            std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
             mpEstimator->Estimate(meas);
+            std::cout << "estimate() done" << std::endl;
         }
     }
 }

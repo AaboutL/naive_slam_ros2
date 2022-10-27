@@ -127,7 +127,8 @@ int Optimizer::VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, FeatureMana
         auto vertexId = p.first;
         auto chainId = p.second;
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(vertexId));
-        pFM->SetPosition(chainId, TypeConverter::toCvVec(vPoint->estimate()));
+        pFM->SetChainPosition(chainId, TypeConverter::toCvVec(vPoint->estimate()));
+        pFM->SetChainOptFlag(chainId, true);
     }
 }
 
@@ -157,16 +158,12 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM, s
     vSE32->setId(vertexIdx++);
     optimizer.addVertex(vSE32);
 
-    PrintCvMat("frame1: ", TypeConverter::SE3toT(vSE31->estimate()));
-    PrintCvMat("frame2: ", TypeConverter::SE3toT(vSE32->estimate()));
     float sum_diff2 = 0;
 
     std::vector<std::pair<int, unsigned long>> vVid2Cid;
     std::vector<std::pair<int, int>> vVid2Pid;
     for(int i = 0; i < vPts3D.size(); i++){
         if(vPts3D[i][2] != 0){
-            std::cout << vPts2D1[i] << std::endl;
-            std::cout << vPts2D2[i] << std::endl;
             vVid2Cid.emplace_back(std::make_pair(vertexIdx, vChainIds[i]));
             vVid2Pid.emplace_back(std::make_pair(vertexIdx, i));
 
@@ -197,7 +194,7 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM, s
             e2->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(1))); // second is current frame pose vertex
             Eigen::Vector2d obs2;
             obs2 << vPts2D2[i][0], vPts2D2[i][1];
-            e1->setMeasurement(obs2);
+            e2->setMeasurement(obs2);
             e2->information() = Eigen::Matrix2d::Identity();
             g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
             rk2->setDelta(thHuberMono);
@@ -210,20 +207,17 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM, s
 
             vertexIdx++;
 
-            // std::cout << vPts3D[i] << std::endl;
             // calc errors
-            // Eigen::Vector2d diff = GeometryFunc::project(vSE31->estimate() * vPoint->estimate(), K) -
             Eigen::Vector2d diff = GeometryFunc::project(vSE31->estimate().map(vPoint->estimate()), K) -
                     Eigen::Vector2d(vPts2D1[i][0], vPts2D1[i][1]);
             sum_diff2 += diff.dot(diff);
 
-            // diff = GeometryFunc::project(vSE32->estimate() * vPoint->estimate(), K) - 
             diff = GeometryFunc::project(vSE32->estimate().map(vPoint->estimate()), K) - 
                     Eigen::Vector2d(vPts2D2[i][0], vPts2D2[i][1]);
             sum_diff2 += diff.dot(diff);
         }
     }
-    std::cout << "points square error before optimization*******************************: " << sum_diff2 / vVid2Cid.size() << std::endl;
+    std::cout << "points square error before optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
     optimizer.initializeOptimization();
     optimizer.setVerbose(true);
     optimizer.optimize(10);
@@ -231,33 +225,29 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM, s
     sum_diff2 = 0;
     for(auto& p: vVid2Pid){
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(p.first));
-        std::cout << TypeConverter::toCvVec(vPoint->estimate()) << std::endl;
 
-        // Eigen::Vector2d diff = GeometryFunc::project(vSE31->estimate() * vPoint->estimate(), K) - 
         Eigen::Vector2d diff = GeometryFunc::project(vSE31->estimate().map(vPoint->estimate()), K) - 
                         Eigen::Vector2d(vPts2D1[p.second][0], vPts2D1[p.second][1]);
         sum_diff2 += diff.dot(diff);
 
-        // diff = GeometryFunc::project(vSE32->estimate() * vPoint->estimate(), K) - 
         diff = GeometryFunc::project(vSE32->estimate().map(vPoint->estimate()), K) - 
                         Eigen::Vector2d(vPts2D2[p.second][0], vPts2D2[p.second][1]);
         sum_diff2 += diff.dot(diff);
     }
-    std::cout << "points square error after optimization*******************************: " << sum_diff2 / vVid2Cid.size() << std::endl;
+    std::cout << "points square error after optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
 
     frame1.SetTcw(TypeConverter::SE3toT(vSE31->estimate()));
     frame2.SetTcw(TypeConverter::SE3toT(vSE32->estimate()));
-
-    PrintCvMat("frame1: ", TypeConverter::SE3toT(vSE31->estimate()));
-    PrintCvMat("frame2: ", TypeConverter::SE3toT(vSE32->estimate()));
 
     for(auto& p : vVid2Cid){
         auto vertexId = p.first;
         auto chainId = p.second;
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(vertexId));
-        pFM->SetPosition(chainId, TypeConverter::toCvVec(vPoint->estimate()));
+        pFM->SetChainPosition(chainId, TypeConverter::toCvVec(vPoint->estimate()));
+        pFM->SetChainOptFlag(chainId, true);
     }
-
+    std::cout << "[Optimizer::VisualInitBA] finished" << std::endl;
+    return 1;
 }
     
 } // namespace Naive_SLAM_ROS

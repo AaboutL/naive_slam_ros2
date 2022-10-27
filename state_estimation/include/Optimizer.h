@@ -41,6 +41,8 @@ public:
                         std::vector<cv::Vec3f>& vPts3D,
                         std::vector<cv::Vec2f>& vPts2D1, std::vector<cv::Vec2f>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const cv::Mat& K);
+    
+    static int VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM);
 };
     
 } // namespace Naive_SLAM_ROS

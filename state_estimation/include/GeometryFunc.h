@@ -17,11 +17,11 @@ namespace Naive_SLAM_ROS{
 
 class GeometryFunc{
 public:
-    static void Triangulate(const cv::Vec2f& pt1, const cv::Vec2f& pt2, 
-        const cv::Mat& P1, const cv::Mat& P2, cv::Mat& pt3D);
+    static cv::Vec3f Triangulate(const cv::Vec2f& pt1, const cv::Vec2f& pt2, 
+        const cv::Mat& P1, const cv::Mat& P2);
 
     static cv::Vec2f project(const cv::Vec3f& pt3D, const cv::Mat& mK);
-    static cv::Vec2f project(const cv::Mat& pt3D, const cv::Mat& mK);
+    // static cv::Vec2f project(const cv::Mat& pt3D, const cv::Mat& mK);
     static Eigen::Vector2d project(const Eigen::Vector3d& pt3D, const cv::Mat& mK);
 
     static Eigen::Vector2d project2d(const Eigen::Vector3d& v);

@@ -7,10 +7,10 @@
 namespace Naive_SLAM_ROS{
 
 StateEstimator::StateEstimator(const std::string& strParamFile):
-mFrameId(0), mState(INIT){
+mFrameId(0), mState(INITS1){
     cv::FileStorage fs(strParamFile.c_str(), cv::FileStorage::READ);
     if (!fs.isOpened()) {
-        // std::cout << "[Estimator] Param file not exist..." << std::endl;
+        std::cout << "[Estimator] Param file not exist..." << std::endl;
         exit(0);
     }
     mWindowSize = fs["WindowSize"];
@@ -20,95 +20,49 @@ mFrameId(0), mState(INIT){
     mK.at<float>(0, 2) = fs["Camera.cx"];
     mK.at<float>(1, 2) = fs["Camera.cy"];
     mpFM = new FeatureManager(mWindowSize);
-}
-
-StateEstimator::StateEstimator(int windowSize, const cv::Mat& K):
-mWindowSize(windowSize), mFrameId(0), mState(INIT), mK(K.clone()){
-    mpFM = new FeatureManager(windowSize);
-
+    mpInitializer = new Initializer(20, 18, mK);
 }
 
 void StateEstimator::Estimate(const std::pair<Frame, std::vector<IMU>>& meas){
     Frame frame = meas.first;
-    mqFrames.emplace_back(frame);
-    mpFM->Manage(frame, mFrameId, mqFrames.size() - 1);
-    if(mState == INIT){
-        VisualInit();
+    mvFrames.emplace_back(frame);
+    mpFM->Manage(frame, mFrameId, mvFrames.size() - 1);
+    mFrameId++;
+    if(mvFrames.size() == 1) // first frame
+        return;
+    if(mState == INITS1 || mState == INITS2){
+        int flag = VisualInit();
+        if(flag == 1){
+            mState = INITS2;
+        }
+        if(flag == 2){
+            mState = VIINIT;
+        }
+    }
+    if(mState == VIINIT){
+        // TODO
     }
 }
 
-bool StateEstimator::VisualInit(){
-    int frameNum = mqFrames.size();
-    std::cout << "test1: " << frameNum << "  " << mWindowSize << std::endl;
-    
-    if(frameNum <= mWindowSize){
+int StateEstimator::VisualInit(){
+    if(mState == INITS1){
         std::vector<cv::Vec2f> vPtsUn1, vPtsUn2;
         std::vector<unsigned long> vChainIds;
-        int matchNum = mpFM->GetMatches(0, frameNum-1, vPtsUn1, vPtsUn2, vChainIds);
-        std::cout << vPtsUn1.size() << " " << vPtsUn2.size() << std::endl;
-        std::cout << matchNum << std::endl;
-
-        std::vector<float> parallaxs;
-        for(int i = 0; i < matchNum; i++){
-            cv::Vec2f chainOffset = vPtsUn2[i] - vPtsUn1[i];
-            std::cout << vPtsUn2[i] << vPtsUn1[i] << std::endl;
-            float parallax = std::sqrt(chainOffset[0] * chainOffset[0] + chainOffset[1] * chainOffset[1]);
-            std::cout << parallax << std::endl;
-            parallaxs.push_back(parallax);
-        }
-        std::sort(parallaxs.begin(), parallaxs.end());
-        std::cout << "matchNum=" << matchNum << "  mid parallax=" << parallaxs[matchNum / 2] << std::endl;
-        if(matchNum < 20 || parallaxs[matchNum / 2] < 18)
-            return false;
-
-        cv::Mat mask, R21, t21;
-        cv::Mat EMat = cv::findEssentialMat(vPtsUn1, vPtsUn2, mK, cv::RANSAC, 0.999, 3.84, mask);
-        int inlier_cnt = cv::recoverPose(EMat, vPtsUn1, vPtsUn2, mK, R21, t21, mask);
-        R21.convertTo(R21, CV_32F);
-        t21.convertTo(t21, CV_32F);
-        mqFrames.back().SetTcw(R21, t21);
-
-        cv::Mat P1(3, 4, CV_32F, cv::Scalar(0));
-        mK.copyTo(P1.rowRange(0, 3).colRange(0, 3));
-        cv::Mat P2(3, 4, CV_32F, cv::Scalar(0));
-        R21.copyTo(P2.rowRange(0, 3).colRange(0, 3));
-        t21.copyTo(P2.rowRange(0, 3).col(3));
-        P2 = mK * P2;
-
-        std::string ts1 = std::to_string(mqFrames.front().mdTimestamp);
-        std::string ts2 = std::to_string(mqFrames.back().mdTimestamp);
-        std::cout << "f1 time: " << ts1 << std::endl;
-        std::cout << "f2 time: " << ts2 << std::endl;
-
-        std::vector<cv::Vec3f> vPts3D(matchNum, cv::Vec3f(0, 0, 0));
-        for(int i = 0; i < matchNum; i++){
-            cv::Mat pt3DC1;
-            cv::Vec2f pt1 = vPtsUn1[i], pt2 = vPtsUn2[i];
-            GeometryFunc::Triangulate(pt1, pt2, P1, P2, pt3DC1);
-
-            if(!isfinite(pt3DC1.at<float>(0)) || !isfinite(pt3DC1.at<float>(1) || !isfinite(pt3DC1.at<float>(2))) 
-                || pt3DC1.at<float>(2) <= 0)
-                continue;
-
-            cv::Vec2f uv1 = GeometryFunc::project(pt3DC1, mK);
-            float squareErr1 = (uv1[0] - pt1[0]) * (uv1[0] - pt1[0]) + (uv1[1] - pt1[1]) * (uv1[1] - pt1[1]);
-            if(squareErr1 > 4)
-                continue;
-            
-            cv::Mat pt3DC2 = R21 * pt3DC1 + t21;
-            if(pt3DC2.at<float>(2) <= 0)
-                continue;
-            cv::Vec2f uv2 = GeometryFunc::project(pt3DC2, mK);
-            float squareErr2 = (uv2[0] - pt2[0]) * (uv2[0] - pt2[0]) + (uv2[1] - pt2[1]) * (uv2[1] - pt2[1]);
-            if(squareErr2 > 4)
-                continue;
-            vPts3D[i] = cv::Vec3f(pt3DC1.at<float>(0), pt3DC1.at<float>(1), pt3DC1.at<float>(2));
-        }
-        Optimizer::VisualInitBA(mqFrames.front(), mqFrames.back(), mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds, mK);
-        return true;
+        std::vector<cv::Vec3f> vPts3D;
+        bool bS1 = mpInitializer->VisualInitS1(mvFrames, mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds);
+        if(!bS1)
+            return -1;
+        Optimizer::VisualInitBA(mvFrames.front(), mvFrames.back(), mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds, mK);
+        return 1;
     }
-    // else{
-    // }
+    if(mState == INITS2 && mvFrames.size() == mWindowSize){
+        bool bS2 = mpInitializer->VisualInitS2(mvFrames, mpFM);
+        if(!bS2)
+            return -1;
+        Optimizer::VisualBA(mvFrames, mpFM);
+        return 2;
+    }
+    return 0;
 }
     
 } // namespace Naive_SLAM_ROS

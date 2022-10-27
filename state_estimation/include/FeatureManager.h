@@ -39,6 +39,7 @@ public:
     std::vector<Feature> mvFeatures;
     int mStartIdx;
     cv::Vec3f mWorldPos; // position in world frame
+    bool mbOptimized;
 };
 
 class FeatureManager{
@@ -46,13 +47,19 @@ public:
     FeatureManager(int windowSize);
     void Manage(const Frame& frame, unsigned long frameId, int startId);
     int GetChains(int chainLen, std::vector<FeatureChain>& vChains) const;
+
     void EraseFront();
     void EraseBack();
+
     int GetMatches(int pos1, int pos2, std::vector<std::pair<cv::Vec2f, cv::Vec2f>>& vMatches) const;
-    // int GetMatches(int pos1, int pos2, std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2) const;
     int GetMatches(int pos1, int pos2, std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2, 
                    std::vector<unsigned long>& vChainIds) const;
-    void SetPosition(unsigned long chainId, const cv::Vec3f& pos);
+    int GetMatches(int pos1, int pos2, std::vector<cv::Vec3f>& vPts3D, std::vector<cv::Vec2f>& vPts2D, 
+                   std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2,
+                   std::vector<unsigned long>& vChainIds) const;
+
+    void SetChainPosition(unsigned long chainId, const cv::Vec3f& pos);
+    void SetChainOptFlag(unsigned long chainId, bool bOpted);
 
 private:
     std::unordered_map<unsigned long, FeatureChain> mmChains;
