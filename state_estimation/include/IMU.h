@@ -18,9 +18,9 @@ namespace Naive_SLAM_ROS
 
 class IMU{
 public:
-    IMU(uint32_t timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr);
+    IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr);
 public:
-    uint32_t miTimestamp;
+    double mdTimestamp;
     Eigen::Vector3d mAcc;
     Eigen::Vector3d mGyr;
     Eigen::Vector3d mVel;

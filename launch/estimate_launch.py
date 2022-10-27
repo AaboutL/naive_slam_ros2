@@ -8,7 +8,9 @@ def generate_launch_description():
             namespace='feature_tracking',
             executable='feature_tracking_node',
             name='feature_tracking_node',
-            arguments=['--ros-args', '--log-level', 'INFO']
+            arguments=['--ros-args', '--log-level', 'INFO'],
+            # emulate_tty=True,
+            # output='screen'
         ),
         Node(
             package='state_estimation',

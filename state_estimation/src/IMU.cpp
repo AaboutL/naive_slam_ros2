@@ -6,8 +6,8 @@
 
 namespace Naive_SLAM_ROS{
 
-IMU::IMU(uint32_t timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr):
-miTimestamp(timestamp), mAcc(acc), mGyr(gyr){
+IMU::IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr):
+mdTimestamp(timestamp), mAcc(acc), mGyr(gyr){
 }
     
 } // namespace Naive_SLAM_ROS

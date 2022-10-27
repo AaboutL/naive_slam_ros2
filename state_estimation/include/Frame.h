@@ -12,9 +12,9 @@ namespace Naive_SLAM_ROS {
 
 class Frame{
 public:
-    Frame(uint32_t timestamp);
+    Frame(double timestamp);
     Frame(const Frame& frame);
-    Frame(uint32_t timestamp, const std::vector<unsigned long>& vChainIds, 
+    Frame(double timestamp, const std::vector<unsigned long>& vChainIds, 
           const std::vector<cv::Vec3f>& vPtsUn, const std::vector<cv::Vec2f>& vPts, 
           const std::vector<cv::Vec2f>& vPtUnOffsets);
         
@@ -22,7 +22,7 @@ public:
     void SetTcw(const cv::Mat& Rcw, const cv::Mat& tcw);
 
 public:
-    uint32_t miTimestamp;
+    double mdTimestamp;
     std::vector<unsigned long> mvChainIds;
     std::vector<cv::Vec3f> mvPtsUn;
     std::vector<cv::Vec2f> mvPts;

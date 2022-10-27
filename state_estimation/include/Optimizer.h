@@ -30,6 +30,13 @@ namespace Naive_SLAM_ROS{
 class Optimizer{
 public:
     static int PoseOptimize();
+
+    // invert depth optimization, not fully correct
+    static int VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, FeatureManager* pFM,
+                        std::vector<cv::Vec3f>& vPts3D,
+                        std::vector<cv::Vec2f>& vPts2D1, std::vector<cv::Vec2f>& vPts2D2,
+                        std::vector<unsigned long>& vChainIds, const cv::Mat& K);
+
     static int VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM,
                         std::vector<cv::Vec3f>& vPts3D,
                         std::vector<cv::Vec2f>& vPts2D1, std::vector<cv::Vec2f>& vPts2D2,

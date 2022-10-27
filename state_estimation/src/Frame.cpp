@@ -6,22 +6,22 @@
 
 namespace Naive_SLAM_ROS{
 
-Frame::Frame(uint32_t timestamp):miTimestamp(timestamp){
+Frame::Frame(double timestamp):mdTimestamp(timestamp){
     SetTcw(cv::Mat::eye(4, 4, CV_32F));
     
 }
 
 Frame::Frame(const Frame& frame):
-miTimestamp(frame.miTimestamp), mvChainIds(frame.mvChainIds), mvPtsUn(frame.mvPtsUn),
+mdTimestamp(frame.mdTimestamp), mvChainIds(frame.mvChainIds), mvPtsUn(frame.mvPtsUn),
 mvPts(frame.mvPts), mvPtUnOffsets(frame.mvPtUnOffsets), mRcw(frame.mRcw.clone()), mtcw(frame.mtcw.clone()),
 mTcw(frame.mTcw.clone()), mRwc(frame.mRwc.clone()), mtwc(frame.mtwc.clone()), mTwc(frame.mTwc.clone()){
 
 }
 
-Frame::Frame(uint32_t timestamp, const std::vector<unsigned long>& vChainIds, 
+Frame::Frame(double timestamp, const std::vector<unsigned long>& vChainIds, 
              const std::vector<cv::Vec3f>& vPtsUn, const std::vector<cv::Vec2f>& vPts,
              const std::vector<cv::Vec2f>& vPtUnOffsets):
-miTimestamp(timestamp), mvChainIds(vChainIds), mvPtsUn(vPtsUn), mvPts(vPts), mvPtUnOffsets(vPtUnOffsets){
+mdTimestamp(timestamp), mvChainIds(vChainIds), mvPtsUn(vPtsUn), mvPts(vPts), mvPtUnOffsets(vPtUnOffsets){
     SetTcw(cv::Mat::eye(4, 4, CV_32F));
 }
 
