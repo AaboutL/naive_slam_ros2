@@ -31,17 +31,17 @@ public:
     void Estimate(const std::pair<Frame, std::vector<IMU>>& pMeas);
 
     int VisualInit();
-    int SolveRelativePose(const std::vector<cv::Vec2f> &vPts0, const std::vector<cv::Vec2f> &vPts1,
+    int SolveRelativePose(const std::vector<Eigen::Vector2d> &vPts0, const std::vector<Eigen::Vector2d> &vPts1,
                           cv::Mat &R10, cv::Mat &t10);
 
 private:
     int mWindowSize;
     unsigned long mFrameId;
     State mState;
-    FeatureManager* mpFM;
+    std::shared_ptr<FeatureManager> mpFM;
     std::vector<Frame> mvFrames;
 
-    cv::Mat mK;
+    Eigen::Matrix3d mK;
     Initializer* mpInitializer;
 };
 

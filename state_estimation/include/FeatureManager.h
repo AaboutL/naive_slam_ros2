@@ -5,8 +5,14 @@
 #ifndef NAIVESLAMROS_FEATUREMANAGER_H
 #define NAIVESLAMROS_FEATUREMANAGER_H
 
+#if __INTELLISENSE__
+#undef __ARM_NEON
+#undef __ARM_NEON__ // 与上一行一样，但是不能删除
+#endif
+
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <eigen3/Eigen/Dense>
 
 #include "Frame.h"
 
@@ -15,11 +21,11 @@ namespace Naive_SLAM_ROS{
 class Feature{
 public:
     Feature(const Feature& feature);
-    Feature(unsigned long chainId, unsigned long frameId, const cv::Vec3f& ptUn, const cv::Vec2f& ptUnOffset);
+    Feature(unsigned long chainId, unsigned long frameId, const Eigen::Vector2d& ptUn, const Eigen::Vector2d& ptUnOffset);
     unsigned long mChainId;
     unsigned long mFrameId;
-    cv::Vec3f mPtUn;
-    cv::Vec2f mPtUnOffset;
+    Eigen::Vector2d mPtUn;
+    Eigen::Vector2d mPtUnOffset;
 };
 
 class FeatureChain{
@@ -29,7 +35,7 @@ public:
 
     void AddFeature(const Feature& feat);
     int GetChainLen() const;
-    cv::Vec2f GetOffset() const;
+    Eigen::Vector2d GetOffset() const;
     void EraseFront();
     void EraseBack();
 
@@ -38,8 +44,9 @@ public:
     int mWindowSize;
     std::vector<Feature> mvFeatures;
     int mStartIdx;
-    cv::Vec3f mWorldPos; // position in world frame
-    bool mbOptimized;
+    Eigen::Vector3d mWorldPos; // position in world frame
+    bool mbGood;
+    bool mbPosSet;
 };
 
 class FeatureManager{
@@ -47,19 +54,23 @@ public:
     FeatureManager(int windowSize);
     void Manage(const Frame& frame, unsigned long frameId, int startId);
     int GetChains(int chainLen, std::vector<FeatureChain>& vChains) const;
+    std::unordered_map<unsigned long, FeatureChain> GetChains() const;
 
     void EraseFront();
     void EraseBack();
 
-    int GetMatches(int pos1, int pos2, std::vector<std::pair<cv::Vec2f, cv::Vec2f>>& vMatches) const;
-    int GetMatches(int pos1, int pos2, std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2, 
+    int GetMatches(int pos1, int pos2, std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>>& vMatches) const;
+    int GetMatches(int pos1, int pos2, std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2, 
                    std::vector<unsigned long>& vChainIds) const;
-    int GetMatches(int pos1, int pos2, std::vector<cv::Vec3f>& vPts3D, std::vector<cv::Vec2f>& vPts2D, 
-                   std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2,
+    int GetMatches(int pos1, int pos2, std::vector<Eigen::Vector3d>& vPts3D, std::vector<Eigen::Vector2d>& vPts2D, 
+                   std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2,
                    std::vector<unsigned long>& vChainIds) const;
 
-    void SetChainPosition(unsigned long chainId, const cv::Vec3f& pos);
-    void SetChainOptFlag(unsigned long chainId, bool bOpted);
+    void SetChainPosition(unsigned long chainId, const Eigen::Vector3d& pos);
+    void SetChainGood(unsigned long chainId, bool bGood);
+
+    bool IsChainGood(unsigned long chainId);
+    bool IsChainPosSet(unsigned long chainId);
 
 private:
     std::unordered_map<unsigned long, FeatureChain> mmChains;

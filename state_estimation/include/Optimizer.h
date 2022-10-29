@@ -25,6 +25,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#define EPSILON 0.000000000001
+
 namespace Naive_SLAM_ROS{
 
 class Optimizer{
@@ -32,17 +34,19 @@ public:
     static int PoseOptimize();
 
     // invert depth optimization, not fully correct
-    static int VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, FeatureManager* pFM,
-                        std::vector<cv::Vec3f>& vPts3D,
-                        std::vector<cv::Vec2f>& vPts2D1, std::vector<cv::Vec2f>& vPts2D2,
-                        std::vector<unsigned long>& vChainIds, const cv::Mat& K);
+    static int VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, 
+                        std::shared_ptr<FeatureManager> pFM,
+                        std::vector<Eigen::Vector3d>& vPts3D,
+                        std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
+                        std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
 
-    static int VisualInitBA(Frame& frame1, Frame& frame2, FeatureManager* pFM,
-                        std::vector<cv::Vec3f>& vPts3D,
-                        std::vector<cv::Vec2f>& vPts2D1, std::vector<cv::Vec2f>& vPts2D2,
-                        std::vector<unsigned long>& vChainIds, const cv::Mat& K);
+    static int VisualInitBA(Frame& frame1, Frame& frame2, 
+                        std::shared_ptr<FeatureManager> pFM,
+                        std::vector<Eigen::Vector3d>& vPts3D,
+                        std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
+                        std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
     
-    static int VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM);
+    static int VisualBA(std::vector<Frame>& vFrames, std::shared_ptr<FeatureManager> pFM, const Eigen::Matrix3d& K);
 };
     
 } // namespace Naive_SLAM_ROS

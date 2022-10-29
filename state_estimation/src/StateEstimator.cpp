@@ -14,13 +14,13 @@ mFrameId(0), mState(INITS1){
         exit(0);
     }
     mWindowSize = fs["WindowSize"];
-    mK = cv::Mat::eye(3, 3, CV_32FC1);
-    mK.at<float>(0, 0) = fs["Camera.fx"];
-    mK.at<float>(1, 1) = fs["Camera.fy"];
-    mK.at<float>(0, 2) = fs["Camera.cx"];
-    mK.at<float>(1, 2) = fs["Camera.cy"];
-    mpFM = new FeatureManager(mWindowSize);
-    mpInitializer = new Initializer(20, 18, mK);
+    mK = Eigen::Matrix3d::Identity();
+    mK(0, 0) = fs["Camera.fx"];
+    mK(1, 1) = fs["Camera.fy"];
+    mK(0, 2) = fs["Camera.cx"];
+    mK(1, 2) = fs["Camera.cy"];
+    mpFM = std::make_shared<FeatureManager>(mWindowSize);
+    mpInitializer = new Initializer(20, 18, mK, mpFM);
 }
 
 void StateEstimator::Estimate(const std::pair<Frame, std::vector<IMU>>& meas){
@@ -46,20 +46,20 @@ void StateEstimator::Estimate(const std::pair<Frame, std::vector<IMU>>& meas){
 
 int StateEstimator::VisualInit(){
     if(mState == INITS1){
-        std::vector<cv::Vec2f> vPtsUn1, vPtsUn2;
+        std::vector<Eigen::Vector2d> vPtsUn1, vPtsUn2;
         std::vector<unsigned long> vChainIds;
-        std::vector<cv::Vec3f> vPts3D;
-        bool bS1 = mpInitializer->VisualInitS1(mvFrames, mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds);
+        std::vector<Eigen::Vector3d> vPts3D;
+        bool bS1 = mpInitializer->VisualInitS1(mvFrames, vPts3D, vPtsUn1, vPtsUn2, vChainIds);
         if(!bS1)
             return -1;
         Optimizer::VisualInitBA(mvFrames.front(), mvFrames.back(), mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds, mK);
         return 1;
     }
     if(mState == INITS2 && mvFrames.size() == mWindowSize){
-        bool bS2 = mpInitializer->VisualInitS2(mvFrames, mpFM);
+        bool bS2 = mpInitializer->VisualInitS2(mvFrames);
         if(!bS2)
             return -1;
-        Optimizer::VisualBA(mvFrames, mpFM);
+        Optimizer::VisualBA(mvFrames, mpFM, mK);
         return 2;
     }
     return 0;

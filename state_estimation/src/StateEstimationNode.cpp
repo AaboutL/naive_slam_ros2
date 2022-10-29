@@ -23,14 +23,12 @@ Node("state_estimation_node"){
 
 void StateEstimationNode::PointCloudCallback(const sensor_msgs::msg::PointCloud::ConstSharedPtr& pc_msg){
     std::vector<unsigned long> vChainIds;
-    // std::vector<cv::Point2f> vPtsUn, vPts, vPtUnOffsets;
-    std::vector<cv::Vec3f> vPtsUn;
-    std::vector<cv::Vec2f> vPts, vPtUnOffsets;
+    std::vector<Eigen::Vector2d> vPtsUn, vPts, vPtUnOffsets;
     for(int i = 0; i < pc_msg->points.size(); i++){
         unsigned long chainId = pc_msg->channels[0].values[i];
-        cv::Vec3f ptUn(pc_msg->points[i].x, pc_msg->points[i].y, pc_msg->points[i].z);
-        cv::Vec2f pt(pc_msg->channels[1].values[i], pc_msg->channels[2].values[i]);
-        cv::Vec2f ptUnOffset(pc_msg->channels[3].values[i], pc_msg->channels[4].values[i]);
+        Eigen::Vector2d ptUn(pc_msg->points[i].x, pc_msg->points[i].y);
+        Eigen::Vector2d pt(pc_msg->channels[1].values[i], pc_msg->channels[2].values[i]);
+        Eigen::Vector2d ptUnOffset(pc_msg->channels[3].values[i], pc_msg->channels[4].values[i]);
         vChainIds.emplace_back(chainId);
         vPtsUn.emplace_back(ptUn);
         vPts.emplace_back(pt);

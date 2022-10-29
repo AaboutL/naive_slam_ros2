@@ -6,47 +6,26 @@
 
 namespace Naive_SLAM_ROS{
 
-// cv::Mat GeometryFunc::Triangulate(const cv::Vec2f& pt1, const cv::Vec2f& pt2, 
-//     const cv::Mat& P1, const cv::Mat& P2){
-//     cv::Mat A(4, 4, CV_32F);
-//     A.row(0) = pt1[0] * P1.row(2) - P1.row(0);
-//     A.row(1) = pt1[1] * P1.row(2) - P1.row(1);
-//     A.row(2) = pt2[0] * P2.row(2) - P2.row(0);
-//     A.row(3) = pt2[1] * P2.row(2) - P2.row(1);
-//     cv::Mat u, w, vt;
-//     cv::SVD::compute(A, u, w, vt, cv::SVD::MODIFY_A| cv::SVD::FULL_UV);
-//     cv::Mat pt3D = vt.row(3).t();
-//     pt3D = pt3D.rowRange(0, 3) / pt3D.at<float>(3);
-//     return pt3D;
-// }
-
-cv::Vec3f GeometryFunc::Triangulate(const cv::Vec2f& pt1, const cv::Vec2f& pt2, 
-    const cv::Mat& P1, const cv::Mat& P2){
-    cv::Mat A(4, 4, CV_32F);
+Eigen::Vector3d GeometryFunc::Triangulate(const Eigen::Vector2d& pt1, const Eigen::Vector2d& pt2, 
+    const Eigen::Matrix<double, 3, 4>& P1, const Eigen::Matrix<double, 3, 4>& P2){
+    Eigen::Matrix4d A;
     A.row(0) = pt1[0] * P1.row(2) - P1.row(0);
     A.row(1) = pt1[1] * P1.row(2) - P1.row(1);
     A.row(2) = pt2[0] * P2.row(2) - P2.row(0);
     A.row(3) = pt2[1] * P2.row(2) - P2.row(1);
-    cv::Mat u, w, vt;
-    cv::SVD::compute(A, u, w, vt, cv::SVD::MODIFY_A| cv::SVD::FULL_UV);
-    cv::Mat tmp = vt.row(3).t();
-    return cv::Vec3f(tmp.at<float>(0), tmp.at<float>(1), tmp.at<float>(2)) / tmp.at<float>(3);
+
+    Eigen::Vector3d pt3D;
+    Eigen::Vector4d triangulated_point;
+	triangulated_point = A.jacobiSvd(Eigen::ComputeFullV).matrixV().rightCols<1>();
+	pt3D(0) = triangulated_point(0) / triangulated_point(3);
+	pt3D(1) = triangulated_point(1) / triangulated_point(3);
+	pt3D(2) = triangulated_point(2) / triangulated_point(3);
+    return pt3D;
 }
 
-cv::Vec2f GeometryFunc::project(const cv::Vec3f& pt3D, const cv::Mat& mK){
-    return cv::Vec2f(pt3D[0] * mK.at<float>(0, 0) / pt3D[2] + mK.at<float>(0, 2),
-                     pt3D[1] * mK.at<float>(1, 1) / pt3D[2] + mK.at<float>(1, 2));
-}
-
-// cv::Vec2f GeometryFunc::project(const cv::Mat& pt3D, const cv::Mat& mK){
-//     cv::Vec3f tmp(pt3D.at<float>(0), pt3D.at<float>(1), pt3D.at<float>(2));
-//     return project(tmp, mK);
-// }
-
-Eigen::Vector2d GeometryFunc::project(const Eigen::Vector3d& pt3D, const cv::Mat& mK){
-    double u = pt3D(0) * mK.at<float>(0, 0) / pt3D(2) + mK.at<float>(0, 2);
-    double v = pt3D(1) * mK.at<float>(1, 1) / pt3D(2) + mK.at<float>(1, 2);
-    return Eigen::Vector2d(u, v);
+Eigen::Vector2d GeometryFunc::project(const Eigen::Vector3d& pt3D, const Eigen::Matrix3d& mK){
+    return Eigen::Vector2d(pt3D[0] * mK(0, 0) / pt3D[2] + mK(0, 2),
+                           pt3D[1] * mK(1, 1) / pt3D[2] + mK(1, 2));
 }
 
 Eigen::Vector2d GeometryFunc::project2d(const Eigen::Vector3d& v){
@@ -66,6 +45,25 @@ Eigen::Vector3d GeometryFunc::unproject2d(const Eigen::Vector2d& v){
 
 Eigen::Vector3d GeometryFunc::invert_depth(const Eigen::Vector3d& x){
     return unproject2d(x.head<2>()) / x[2];
+}
+
+void GeometryFunc::SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const std::vector<Eigen::Vector2d>& vPts2D,
+        const Eigen::Matrix3d& K, Eigen::Matrix3d& R21, Eigen::Vector3d& t21){
+
+    std::vector<cv::Vec3f> cvPts3D(vPts3D.size()); 
+    std::vector<cv::Vec2f> cvPts2D(vPts2D.size());
+    for(int i = 0; i < vPts2D.size(); i++){
+        cvPts3D[i] = cv::Vec3f(vPts3D[i][0], vPts3D[i][1], vPts3D[i][2]);
+        cvPts2D[i] = cv::Vec2f(vPts2D[i][0], vPts2D[i][1]);
+    }
+    cv::Mat cvr21, cvt21, cvR21, inliers, cvK;
+    cv::eigen2cv(K, cvK);
+    cv::solvePnPRansac(cvPts3D, cvPts2D, cvK, cv::Mat::zeros(4, 1, CV_32F),
+                        cvr21, cvt21, false, 100, 2, 0.99, inliers, cv::SOLVEPNP_EPNP);
+    
+    cv::Rodrigues(cvr21, cvR21);
+    R21 = TypeConverter::MatCVtoEigen(cvR21);
+    t21 = TypeConverter::VecCVtoEigen(cvt21);
 }
     
 } // namespace Naive_SLAM_ROS

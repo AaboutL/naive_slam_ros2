@@ -11,7 +11,7 @@ mChainId(feature.mChainId), mFrameId(feature.mFrameId), mPtUn(feature.mPtUn), mP
 }
 
 Feature::Feature(unsigned long chainId, unsigned long frameId, 
-    const cv::Vec3f& ptUn, const cv::Vec2f& ptUnOffset):
+    const Eigen::Vector2d& ptUn, const Eigen::Vector2d& ptUnOffset):
 mChainId(chainId), mFrameId(frameId), mPtUn(ptUn), mPtUnOffset(ptUnOffset){
 }
 
@@ -19,13 +19,13 @@ mChainId(chainId), mFrameId(frameId), mPtUn(ptUn), mPtUnOffset(ptUnOffset){
 
 FeatureChain::FeatureChain(unsigned long chainId, int windowSize, int startId):
 mChainId(chainId), mWindowSize(windowSize), mvFeatures(std::vector<Feature>()),
-mStartIdx(startId), mWorldPos(cv::Vec3f(0, 0, 0)), mbOptimized(false){
+mStartIdx(startId), mWorldPos(Eigen::Vector3d(0, 0, 0)), mbGood(false), mbPosSet(false){
 }
 
 FeatureChain::FeatureChain(const FeatureChain& featureChain):
 mChainId(featureChain.mChainId), mWindowSize(featureChain.mWindowSize), 
 mvFeatures(featureChain.mvFeatures), mStartIdx(featureChain.mStartIdx),
-mWorldPos(featureChain.mWorldPos), mbOptimized(featureChain.mbOptimized){
+mWorldPos(featureChain.mWorldPos), mbGood(featureChain.mbGood), mbPosSet(featureChain.mbGood){
 }
 
 void FeatureChain::AddFeature(const Feature& feat){
@@ -40,9 +40,8 @@ int FeatureChain::GetChainLen() const {
     return mvFeatures.size();
 }
 
-cv::Vec2f FeatureChain::GetOffset() const{
-    cv::Vec3f tmp = mvFeatures.back().mPtUn - mvFeatures.front().mPtUn;
-    return {tmp[0], tmp[1]};
+Eigen::Vector2d FeatureChain::GetOffset() const{
+    return mvFeatures.back().mPtUn - mvFeatures.front().mPtUn;
 }
 
 void FeatureChain::EraseFront() {
@@ -83,9 +82,8 @@ void FeatureManager::Manage(const Frame& frame, unsigned long frameId, int start
         else{ // This ChainId not exist. Need create a new one; Also need create a former feature
             FeatureChain featureChain(chainId, mWindowSize, startId - 1);
 
-            cv::Vec3f ptUnFormer(frame.mvPtsUn[i][0] - frame.mvPtUnOffsets[i][0],
-                                  frame.mvPtsUn[i][1] - frame.mvPtUnOffsets[i][1], 1);
-            cv::Vec2f ptUnOffsetsFormer(0, 0);
+            Eigen::Vector2d ptUnFormer = frame.mvPtsUn[i] - frame.mvPtUnOffsets[i];
+            Eigen::Vector2d ptUnOffsetsFormer(0, 0);
             Feature featFormer(chainId, frameId - 1, ptUnFormer, ptUnOffsetsFormer);
             featureChain.AddFeature(featFormer);
             featureChain.AddFeature(feat);
@@ -101,6 +99,10 @@ int FeatureManager::GetChains(int chainLen, std::vector<FeatureChain>& vChains) 
         }
     }
     return vChains.size();
+}
+
+std::unordered_map<unsigned long, FeatureChain> FeatureManager::GetChains() const{
+    return mmChains;
 }
 
 void FeatureManager::EraseFront() {
@@ -120,20 +122,20 @@ void FeatureManager::EraseBack() {
 }
 
 int FeatureManager::GetMatches(int pos1, int pos2, 
-        std::vector<std::pair<cv::Vec2f, cv::Vec2f>>& vMatches) const{
+        std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>>& vMatches) const{
 
     for(auto& [chainId, chain] : mmChains){
         if(chain.mStartIdx > pos1 || chain.mStartIdx + chain.GetChainLen() <= pos2)
             continue;
-        cv::Vec3f pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
-        cv::Vec3f pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
-        vMatches.emplace_back(std::make_pair(cv::Vec2f(pt1[0], pt1[1]), cv::Vec2f(pt2[0], pt2[1])));
+        Eigen::Vector2d pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
+        Eigen::Vector2d pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
+        vMatches.emplace_back(std::make_pair(pt1, pt2));
     }
     return vMatches.size();
 }
 
 int FeatureManager::GetMatches(int pos1, int pos2, 
-        std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2, 
+        std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2, 
         std::vector<unsigned long>& vChainIds) const{
     if(mmChains.empty()){
         std::cout << "No Chain exists!" << std::endl;
@@ -143,17 +145,17 @@ int FeatureManager::GetMatches(int pos1, int pos2,
     for(auto& [chainId, chain] : mmChains){
         if(chain.mStartIdx > pos1 || chain.mStartIdx + chain.GetChainLen() <= pos2)
             continue;
-        cv::Vec3f pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
-        cv::Vec3f pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
-        vPts1.emplace_back(cv::Vec2f(pt1[0], pt1[1]));
-        vPts2.emplace_back(cv::Vec2f(pt2[0], pt2[1]));
+        Eigen::Vector2d pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
+        Eigen::Vector2d pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
+        vPts1.emplace_back(pt1);
+        vPts2.emplace_back(pt2);
         vChainIds.emplace_back(chainId);
     }
     return vPts1.size();
 }
 
-int FeatureManager::GetMatches(int pos1, int pos2, std::vector<cv::Vec3f>& vPts3D, std::vector<cv::Vec2f>& vPts2D, 
-        std::vector<cv::Vec2f>& vPts1, std::vector<cv::Vec2f>& vPts2, std::vector<unsigned long>& vChainIds) const{
+int FeatureManager::GetMatches(int pos1, int pos2, std::vector<Eigen::Vector3d>& vPts3D, std::vector<Eigen::Vector2d>& vPts2D, 
+        std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2, std::vector<unsigned long>& vChainIds) const{
     if(mmChains.empty()){
         std::cout << "No Chain exists!" << std::endl;
         return -1;
@@ -161,30 +163,51 @@ int FeatureManager::GetMatches(int pos1, int pos2, std::vector<cv::Vec3f>& vPts3
     for(auto& [chainId, chain] : mmChains){
         if(chain.mStartIdx > pos1 || chain.mStartIdx + chain.GetChainLen() <= pos2)
             continue;
-        cv::Vec3f pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
-        cv::Vec3f pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
-        if(chain.mbOptimized){
+        Eigen::Vector2d pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
+        Eigen::Vector2d pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
+        if(chain.mbGood){
             vPts3D.emplace_back(chain.mWorldPos);
-            vPts2D.emplace_back(cv::Vec2f(pt2[0], pt2[1]));
+            vPts2D.emplace_back(pt2);
         }
         else{
-            vPts1.emplace_back(cv::Vec2f(pt1[0], pt1[1]));
-            vPts2.emplace_back(cv::Vec2f(pt2[0], pt2[1]));
+            vPts1.emplace_back(pt1);
+            vPts2.emplace_back(pt2);
             vChainIds.emplace_back(chainId);
         }
     }
     return vPts3D.size() + vPts1.size();
 }
 
-void FeatureManager::SetChainPosition(unsigned long chainId, const cv::Vec3f& pos){
+void FeatureManager::SetChainPosition(unsigned long chainId, const Eigen::Vector3d& pos){
     if(mmChains.find(chainId) != mmChains.end()){
         mmChains.find(chainId)->second.mWorldPos = pos;
+        mmChains.find(chainId)->second.mbPosSet = true;
     }
 }
 
-void FeatureManager::SetChainOptFlag(unsigned long chainId, bool bOpted){
+void FeatureManager::SetChainGood(unsigned long chainId, bool bGood){
     if(mmChains.find(chainId) != mmChains.end()){
-        mmChains.find(chainId)->second.mbOptimized = bOpted;
+        mmChains.find(chainId)->second.mbGood = bGood;
+    }
+}
+
+bool FeatureManager::IsChainGood(unsigned long chainId){
+    if(mmChains.find(chainId) != mmChains.end()){
+        return mmChains.find(chainId)->second.mbGood;
+    }
+    else{
+        std::cout << "Error: This chain does not exist!" << std::endl;
+        return false;
+    }
+}
+
+bool FeatureManager::IsChainPosSet(unsigned long chainId){
+    if(mmChains.find(chainId) != mmChains.end()){
+        return mmChains.find(chainId)->second.mbPosSet;
+    }
+    else{
+        std::cout << "Error: This chain does not exist!" << std::endl;
+        return false;
     }
 }
 

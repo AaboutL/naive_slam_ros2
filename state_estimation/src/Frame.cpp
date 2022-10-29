@@ -7,50 +7,48 @@
 namespace Naive_SLAM_ROS{
 
 Frame::Frame(double timestamp):mdTimestamp(timestamp){
-    SetTcw(cv::Mat::eye(4, 4, CV_32F));
-    
+    SetTcw(Eigen::Matrix4d::Identity());
 }
 
 Frame::Frame(const Frame& frame):
 mdTimestamp(frame.mdTimestamp), mvChainIds(frame.mvChainIds), mvPtsUn(frame.mvPtsUn),
-mvPts(frame.mvPts), mvPtUnOffsets(frame.mvPtUnOffsets), mRcw(frame.mRcw.clone()), mtcw(frame.mtcw.clone()),
-mTcw(frame.mTcw.clone()), mRwc(frame.mRwc.clone()), mtwc(frame.mtwc.clone()), mTwc(frame.mTwc.clone()){
-
+mvPts(frame.mvPts), mvPtUnOffsets(frame.mvPtUnOffsets), mRcw(frame.mRcw), mtcw(frame.mtcw),
+mTcw(frame.mTcw), mRwc(frame.mRwc), mtwc(frame.mtwc), mTwc(frame.mTwc){
 }
 
 Frame::Frame(double timestamp, const std::vector<unsigned long>& vChainIds, 
-             const std::vector<cv::Vec3f>& vPtsUn, const std::vector<cv::Vec2f>& vPts,
-             const std::vector<cv::Vec2f>& vPtUnOffsets):
+             const std::vector<Eigen::Vector2d>& vPtsUn, const std::vector<Eigen::Vector2d>& vPts,
+             const std::vector<Eigen::Vector2d>& vPtUnOffsets):
 mdTimestamp(timestamp), mvChainIds(vChainIds), mvPtsUn(vPtsUn), mvPts(vPts), mvPtUnOffsets(vPtUnOffsets){
-    SetTcw(cv::Mat::eye(4, 4, CV_32F));
+    SetTcw(Eigen::Matrix4d::Identity());
 }
 
-void Frame::SetTcw(const cv::Mat& Tcw){
-    mTcw = Tcw.clone();
+void Frame::SetTcw(const Eigen::Matrix4d& Tcw){
+    mTcw = Tcw;
 
-    mRcw = Tcw.rowRange(0, 3).colRange(0, 3);
-    mtcw = Tcw.rowRange(0, 3).col(3);
+    mRcw = Tcw.block<3, 3>(0, 0);
+    mtcw = Tcw.block<3, 1>(0, 3);
 
-    mRwc = mRcw.t();
+    mRwc = mRcw.transpose();
     mtwc = -mRwc * mtcw;
 
-    mTwc = cv::Mat::eye(4, 4, CV_32F);
-    mRwc.copyTo(mTwc.rowRange(0, 3).colRange(0, 3));
-    mtwc.copyTo(mTwc.rowRange(0, 3).col(3));
+    mTwc = Eigen::Matrix4d::Identity();
+    mTwc.block<3, 3>(0, 0) = mRwc;
+    mTwc.block<3, 1>(0, 3) = mtwc;
 }
 
-void Frame::SetTcw(const cv::Mat& Rcw, const cv::Mat& tcw){
+void Frame::SetTcw(const Eigen::Matrix3d& Rcw, const Eigen::Vector3d& tcw){
     mRcw = Rcw;
     mtcw = tcw;
-    mTcw = cv::Mat::eye(4, 4, CV_32F);
-    mRcw.copyTo(mTcw.rowRange(0, 3).colRange(0, 3));
-    mtcw.copyTo(mTcw.rowRange(0, 3).col(3));
+    mTcw = Eigen::Matrix4d::Identity();
+    mTcw.block<3, 3>(0, 0) = mRcw;
+    mTcw.block<3, 1>(0, 3) = mtcw;
 
-    mTwc = cv::Mat::eye(4, 4, CV_32F);
-    mRwc = Rcw.t();
-    mtwc = -Rcw.t() * tcw;
-    mRwc.copyTo(mTwc.rowRange(0, 3).colRange(0, 3));
-    mtwc.copyTo(mTwc.rowRange(0, 3).col(3));
+    mTwc = Eigen::Matrix4d::Identity();
+    mRwc = Rcw.transpose();
+    mtwc = -mRwc * tcw;
+    mTwc.block<3, 3>(0, 0) = mRwc;
+    mTwc.block<3, 1>(0, 3) = mtwc;
 }
 
 } // namespace naive_slam_ros

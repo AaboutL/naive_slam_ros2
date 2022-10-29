@@ -30,10 +30,16 @@ public:
         return g2o::SE3Quat(R, t);
     }
     
-    static Eigen::Vector3d VecCVtoEigen(const cv::Vec3f& vec){
-        Eigen::Vector3d eVec;
-        eVec << vec(0), vec(1), vec(2);
-        return eVec;
+    static Eigen::Vector3d VecCVtoEigen(const cv::Mat& vec){
+        return Eigen::Vector3d(vec.at<double>(0), vec.at<double>(1), vec.at<double>(2));
+    }
+
+    static Eigen::Matrix3d MatCVtoEigen(const cv::Mat& mat){
+        Eigen::Matrix3d m;
+        m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2),
+             mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2),
+             mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2);
+        return m;
     }
 
     static cv::Mat SE3toT(const g2o::SE3Quat& SE3Quat){
@@ -47,13 +53,6 @@ public:
         return T;
     }
 
-    static cv::Vec3f toCvVec(const Eigen::Matrix<double,3,1> &m){
-        cv::Vec3f vec;
-        for(int i = 0; i < 3; i++){
-            vec[i] = m(i);
-        }
-        return vec;
-    }
 };
     
 } // namespace Naive_SLAM_ROS
