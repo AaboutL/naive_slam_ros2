@@ -15,7 +15,7 @@ namespace Naive_SLAM_ROS{
 
 class Initializer{
 public:
-    Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, std::shared_ptr<FeatureManager> pFM);
+    Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM);
 
     bool VisualInitS1(std::vector<Frame>& qFrames,std::vector<Eigen::Vector3d>& vPts3D, 
         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
@@ -33,7 +33,7 @@ private:
     float mParallaxTh;
     Eigen::Matrix3d mK;
     int mInitIdx;
-    std::shared_ptr<FeatureManager> mpFM;
+    FeatureManager* mpFM;
 };
     
 } // namespace Naive_SLAM_ROS

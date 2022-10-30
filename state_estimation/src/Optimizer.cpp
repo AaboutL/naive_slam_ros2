@@ -105,13 +105,13 @@ int Optimizer::VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, std::shared
         auto vertexId = p.first;
         auto chainId = p.second;
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(vertexId));
-        pFM->SetChainPosition(chainId, vPoint->estimate());
+        pFM->SetWorldPos(chainId, vPoint->estimate());
         pFM->SetChainGood(chainId, true);
     }
 }
 
 int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, 
-                        std::shared_ptr<FeatureManager> pFM, std::vector<Eigen::Vector3d>& vPts3D,
+                        FeatureManager* pFM, std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K){
     g2o::SparseOptimizer optimizer;
@@ -213,14 +213,15 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2,
         auto vertexId = p.first;
         auto chainId = p.second;
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(vertexId));
-        pFM->SetChainPosition(chainId, vPoint->estimate());
+        pFM->SetWorldPos(chainId, vPoint->estimate());
         pFM->SetChainGood(chainId, true);
     }
     std::cout << "[Optimizer::VisualInitBA] finished" << std::endl;
     return 1;
 }
 
-int Optimizer::VisualBA(std::vector<Frame>& vFrames, std::shared_ptr<FeatureManager> pFM, const Eigen::Matrix3d& K){
+
+int Optimizer::VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM, const Eigen::Matrix3d& K){
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
             std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -244,21 +245,26 @@ int Optimizer::VisualBA(std::vector<Frame>& vFrames, std::shared_ptr<FeatureMana
     }
 
     // add 3D point vertex
-    double sum_diff2 = 0;
+    int edge_num = 0;
+    int used_chain = 0;
     double sum_chi2 = 0;
-    std::vector<std::pair<g2o::EdgeSE3ProjectXYZ*, std::vector<int>>> vEdges;
-    std::vector<g2o::VertexPointXYZ*> vPoints;
-    std::vector<Eigen::Vector2d> vObs;
+    // std::vector<std::pair<g2o::EdgeSE3ProjectXYZ*, std::vector<int>>> vEdges;
+    std::vector<std::pair<g2o::VertexPointXYZ*, unsigned long>> vPoints;
+    std::vector<std::vector<Eigen::Vector2d>> vvObs;
+    std::vector<std::vector<g2o::EdgeSE3ProjectXYZ*>> vvEdges;
     for(auto& [id, chain] : pFM->GetChains()){
         if(!chain.mbPosSet)
             continue;
+        used_chain++;
         auto *vPoint = new g2o::VertexPointXYZ();
         vPoint->setEstimate(chain.mWorldPos);
         vPoint->setId(vertexIdx);
         vPoint->setMarginalized(true);
         optimizer.addVertex(vPoint);
-        vPoints.emplace_back(vPoint);
+        vPoints.emplace_back(std::make_pair(vPoint, id));
 
+        std::vector<Eigen::Vector2d> vObs;
+        std::vector<g2o::EdgeSE3ProjectXYZ*> vEdges;
         for(int i = 0; i < chain.mvFeatures.size(); i++){
             auto* e = new g2o::EdgeSE3ProjectXYZ();
             e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex *>(optimizer.vertex(vertexIdx))); 
@@ -277,37 +283,63 @@ int Optimizer::VisualBA(std::vector<Frame>& vFrames, std::shared_ptr<FeatureMana
             e->cy = K(1, 2);
             optimizer.addEdge(e);
 
-            vEdges.emplace_back(std::make_pair(e, std::vector<int>{chain.mStartIdx + i, (int)vPoints.size()-1, (int)vObs.size()-1}));
+            vEdges.emplace_back(e);
+            vObs.emplace_back(obs);
+            edge_num++;
 
             // calc sum of square error before optimization
-            Eigen::Vector2d diff = e->cam_project(vPoses[chain.mStartIdx + i]->estimate().map(vPoint->estimate())) - obs;
-            sum_diff2 += diff.dot(diff);
+            // Eigen::Vector2d diff = e->cam_project(vPoses[chain.mStartIdx + i]->estimate().map(vPoint->estimate())) - obs;
+            // sum_diff2 += diff.dot(diff);
             sum_chi2 += e->chi2();
         }
+        vvEdges.emplace_back(vEdges);
+        vvObs.emplace_back(vObs);
         vertexIdx++;
     }
 
-    std::cout << "points square error before optimization: " << sum_diff2 / vEdges.size() << std::endl;
-    std::cout << "chi2 before optimization: " << sum_chi2 / vEdges.size() << std::endl;
+    std::cout << "chi2 before optimization: " << sum_chi2 / edge_num << std::endl;
 
     optimizer.initializeOptimization();
     optimizer.setVerbose(true);
-    optimizer.optimize(40);
+    optimizer.optimize(20);
+
+    for(int i = 0; i < vFrames.size(); i++){
+        vFrames[i].SetTcw(vPoses[i]->estimate().to_homogeneous_matrix());
+    }
 
     sum_chi2 = 0;
-    sum_diff2 = 0;
-    for(auto& im: vEdges){
-        sum_chi2 += im.first->chi2();
-        auto* e = im.first;
-        auto* pose = vPoses[im.second[0]];
-        auto* pt = vPoints[im.second[1]];
-        auto ob = vObs[im.second[2]];
-        Eigen::Vector2d diff = e->cam_project(pose->estimate().map(pt->estimate())) - ob;
-        sum_diff2 += diff.dot(diff);
+    double sum_chi2_good = 0;
+    int goodChainNum = 0;
+    int goodEdgeNum = 0;
+    for(int i = 0; i < vPoints.size(); i++){
+        bool chainGood = true;
+        double chain_chi2 = 0;
+        int edgeNum = 0;
+        for(int j = 0; j < vvEdges[i].size(); j++){
+            double chi2 = vvEdges[i][j]->chi2();
+            chain_chi2 += chi2;
+            sum_chi2 += chi2;
+            edgeNum++;
+            if (chi2 > 5.991){
+                chainGood = false;
+            }
+        }
+        if(chainGood){
+            sum_chi2_good += chain_chi2;
+            goodChainNum++;
+            goodEdgeNum += edgeNum;
+            pFM->UpdateWorldPos(vPoints[i].second, vPoints[i].first->estimate());
+            pFM->SetChainGood(vPoints[i].second, true);
+        }
     }
-    std::cout << "points square error after optimization: " << sum_diff2 / vEdges.size() << std::endl;
-    std::cout << "chi2 after optimization: " << sum_chi2 / vEdges.size() << std::endl;
-    std::cout << "edge num=" << vEdges.size() << std::endl;
+    std::cout << "chi2 after optimization: " << sum_chi2 / edge_num << std::endl;
+    std::cout << "chi2 after optimization good: " << sum_chi2_good / goodEdgeNum << std::endl;
+    std::cout << "edge_num=" << edge_num << std::endl;
+    std::cout << "edge_num good=" << goodEdgeNum << std::endl;
+    std::cout << "good chain num=" << goodChainNum << std::endl;
+    std::cout << "used chain num=" << used_chain << std::endl;
+    std::cout << "total chain num=" << pFM->GetChains().size() << std::endl;
+    return goodChainNum;
 }
 
     

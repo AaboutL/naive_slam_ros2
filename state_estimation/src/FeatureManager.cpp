@@ -25,7 +25,7 @@ mStartIdx(startId), mWorldPos(Eigen::Vector3d(0, 0, 0)), mbGood(false), mbPosSet
 FeatureChain::FeatureChain(const FeatureChain& featureChain):
 mChainId(featureChain.mChainId), mWindowSize(featureChain.mWindowSize), 
 mvFeatures(featureChain.mvFeatures), mStartIdx(featureChain.mStartIdx),
-mWorldPos(featureChain.mWorldPos), mbGood(featureChain.mbGood), mbPosSet(featureChain.mbGood){
+mWorldPos(featureChain.mWorldPos), mbGood(featureChain.mbGood), mbPosSet(featureChain.mbPosSet){
 }
 
 void FeatureChain::AddFeature(const Feature& feat){
@@ -101,7 +101,7 @@ int FeatureManager::GetChains(int chainLen, std::vector<FeatureChain>& vChains) 
     return vChains.size();
 }
 
-std::unordered_map<unsigned long, FeatureChain> FeatureManager::GetChains() const{
+const std::unordered_map<unsigned long, FeatureChain>& FeatureManager::GetChains() const{
     return mmChains;
 }
 
@@ -165,7 +165,7 @@ int FeatureManager::GetMatches(int pos1, int pos2, std::vector<Eigen::Vector3d>&
             continue;
         Eigen::Vector2d pt1 = chain.mvFeatures[pos1 - chain.mStartIdx].mPtUn;
         Eigen::Vector2d pt2 = chain.mvFeatures[pos2 - chain.mStartIdx].mPtUn;
-        if(chain.mbGood){
+        if(chain.mbPosSet){
             vPts3D.emplace_back(chain.mWorldPos);
             vPts2D.emplace_back(pt2);
         }
@@ -178,10 +178,19 @@ int FeatureManager::GetMatches(int pos1, int pos2, std::vector<Eigen::Vector3d>&
     return vPts3D.size() + vPts1.size();
 }
 
-void FeatureManager::SetChainPosition(unsigned long chainId, const Eigen::Vector3d& pos){
+void FeatureManager::SetWorldPos(unsigned long chainId, const Eigen::Vector3d& pos){
     if(mmChains.find(chainId) != mmChains.end()){
         mmChains.find(chainId)->second.mWorldPos = pos;
         mmChains.find(chainId)->second.mbPosSet = true;
+    }
+    else{
+        std::cout << "ChainId not found" << std::endl;
+    }
+}
+
+void FeatureManager::UpdateWorldPos(unsigned long chainId, const Eigen::Vector3d& pos){
+    if(mmChains.find(chainId) != mmChains.end()){
+        mmChains.find(chainId)->second.mWorldPos = pos;
     }
 }
 

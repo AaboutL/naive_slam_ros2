@@ -41,12 +41,16 @@ public:
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
 
     static int VisualInitBA(Frame& frame1, Frame& frame2, 
-                        std::shared_ptr<FeatureManager> pFM,
+                        // std::shared_ptr<FeatureManager>& pFM,
+                        FeatureManager* pFM,
                         std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
     
-    static int VisualBA(std::vector<Frame>& vFrames, std::shared_ptr<FeatureManager> pFM, const Eigen::Matrix3d& K);
+    static int VisualBA(std::vector<Frame>& vFrames, 
+                        // std::shared_ptr<FeatureManager>& pFM, 
+                        FeatureManager* pFM, 
+                        const Eigen::Matrix3d& K);
 };
     
 } // namespace Naive_SLAM_ROS

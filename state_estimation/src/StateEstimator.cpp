@@ -19,7 +19,8 @@ mFrameId(0), mState(INITS1){
     mK(1, 1) = fs["Camera.fy"];
     mK(0, 2) = fs["Camera.cx"];
     mK(1, 2) = fs["Camera.cy"];
-    mpFM = std::make_shared<FeatureManager>(mWindowSize);
+    // mpFM = std::make_shared<FeatureManager>(mWindowSize);
+    mpFM = new FeatureManager(mWindowSize);
     mpInitializer = new Initializer(20, 18, mK, mpFM);
 }
 
@@ -59,7 +60,7 @@ int StateEstimator::VisualInit(){
         bool bS2 = mpInitializer->VisualInitS2(mvFrames);
         if(!bS2)
             return -1;
-        Optimizer::VisualBA(mvFrames, mpFM, mK);
+        int goodChainNum = Optimizer::VisualBA(mvFrames, mpFM, mK);
         return 2;
     }
     return 0;

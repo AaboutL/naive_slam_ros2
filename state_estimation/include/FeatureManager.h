@@ -54,7 +54,7 @@ public:
     FeatureManager(int windowSize);
     void Manage(const Frame& frame, unsigned long frameId, int startId);
     int GetChains(int chainLen, std::vector<FeatureChain>& vChains) const;
-    std::unordered_map<unsigned long, FeatureChain> GetChains() const;
+    const std::unordered_map<unsigned long, FeatureChain>& GetChains() const;
 
     void EraseFront();
     void EraseBack();
@@ -66,8 +66,9 @@ public:
                    std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2,
                    std::vector<unsigned long>& vChainIds) const;
 
-    void SetChainPosition(unsigned long chainId, const Eigen::Vector3d& pos);
+    void SetWorldPos(unsigned long chainId, const Eigen::Vector3d& pos);
     void SetChainGood(unsigned long chainId, bool bGood);
+    void UpdateWorldPos(unsigned long chainId, const Eigen::Vector3d& pos);
 
     bool IsChainGood(unsigned long chainId);
     bool IsChainPosSet(unsigned long chainId);

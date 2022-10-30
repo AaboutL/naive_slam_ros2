@@ -50,11 +50,11 @@ Eigen::Vector3d GeometryFunc::invert_depth(const Eigen::Vector3d& x){
 void GeometryFunc::SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const std::vector<Eigen::Vector2d>& vPts2D,
         const Eigen::Matrix3d& K, Eigen::Matrix3d& R21, Eigen::Vector3d& t21){
 
-    std::vector<cv::Vec3f> cvPts3D(vPts3D.size()); 
-    std::vector<cv::Vec2f> cvPts2D(vPts2D.size());
+    std::vector<cv::Vec3d> cvPts3D(vPts3D.size()); 
+    std::vector<cv::Vec2d> cvPts2D(vPts2D.size());
     for(int i = 0; i < vPts2D.size(); i++){
-        cvPts3D[i] = cv::Vec3f(vPts3D[i][0], vPts3D[i][1], vPts3D[i][2]);
-        cvPts2D[i] = cv::Vec2f(vPts2D[i][0], vPts2D[i][1]);
+        cvPts3D[i] = cv::Vec3d(vPts3D[i][0], vPts3D[i][1], vPts3D[i][2]);
+        cvPts2D[i] = cv::Vec2d(vPts2D[i][0], vPts2D[i][1]);
     }
     cv::Mat cvr21, cvt21, cvR21, inliers, cvK;
     cv::eigen2cv(K, cvK);

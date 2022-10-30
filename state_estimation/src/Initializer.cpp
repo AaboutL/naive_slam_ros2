@@ -7,7 +7,7 @@
 
 namespace Naive_SLAM_ROS{
 
-Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, std::shared_ptr<FeatureManager> pFM):
+Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM):
 mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM){
 }
 
@@ -110,34 +110,46 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
     P2.block<3, 1>(0, 3) = tcw2;
     P2 = mK * P2;
 
+    int rej_z1 = 0;
+    int rej_z2 = 0;
+    int rej_err1 = 0;
+    int rej_err2 = 0;
     for(int j = 0; j < vPts2D1.size(); j++){
         Eigen::Vector2d pt1 = vPts2D1[j], pt2 = vPts2D2[j];
         Eigen::Vector3d pt3DW = GeometryFunc::Triangulate(pt1, pt2, P1, P2);
 
         auto pt3DC1 = Rcw1 * pt3DW + tcw1;
-        if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0)
+        if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0){
+            rej_z1++;
             continue;
+        }
 
         auto pt3DC2 = Rcw2 * pt3DW + tcw2;
-        if(!finite(pt3DC2[0]) || !finite(pt3DC2[1]) || !finite(pt3DC2[2]) || pt3DC2[2] <= 0)
+        if(!finite(pt3DC2[0]) || !finite(pt3DC2[1]) || !finite(pt3DC2[2]) || pt3DC2[2] <= 0){
+            rej_z2++;
             continue;
+        }
 
         Eigen::Vector2d uv1 = GeometryFunc::project(pt3DC1, mK);
         auto err1 = uv1 - pt1;
         auto err12 = err1.dot(err1);
+        if(err12 > 5.991){
+            rej_err1++;
+            continue;
+        }
 
         Eigen::Vector2d uv2 = GeometryFunc::project(pt3DC2, mK);
         auto err2 = uv2 - pt2;
         auto err22 = err2.dot(err2);
-
-        if(err12 > 4)
+        if(err22 > 5.991){
+            rej_err2++;
             continue;
-        if(err22 > 4)
-            continue;
+        }
 
         vPts3D[j] = pt3DW;
-        mpFM->SetChainPosition(vChainIds[j], pt3DW);
+        mpFM->SetWorldPos(vChainIds[j], pt3DW);
     }
+
     return vPts3D;
 }
 

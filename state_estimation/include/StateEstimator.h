@@ -38,7 +38,8 @@ private:
     int mWindowSize;
     unsigned long mFrameId;
     State mState;
-    std::shared_ptr<FeatureManager> mpFM;
+    // std::shared_ptr<FeatureManager> mpFM;
+    FeatureManager* mpFM;
     std::vector<Frame> mvFrames;
 
     Eigen::Matrix3d mK;
