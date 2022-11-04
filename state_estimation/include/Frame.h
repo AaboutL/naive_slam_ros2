@@ -26,6 +26,8 @@ public:
         
     void SetTcw(const Eigen::Matrix4d& Tcw);
     void SetTcw(const Eigen::Matrix3d& Rcw, const Eigen::Vector3d& tcw);
+    
+    void SetPreintegrationData();
 
 public:
     double mdTimestamp;
@@ -40,6 +42,9 @@ public:
     Eigen::Matrix3d mRwc;
     Eigen::Vector3d mtwc;
     Eigen::Matrix4d mTwc; // position in world frame
+
+    // Preintegration data
+    Eigen::Matrix<double, 15, 15> mPreintCovMatrix;
 
 };
     

@@ -34,16 +34,22 @@ public:
     int SolveRelativePose(const std::vector<Eigen::Vector2d> &vPts0, const std::vector<Eigen::Vector2d> &vPts1,
                           cv::Mat &R10, cv::Mat &t10);
 
+    void Preintegrate(std::vector<IMU>& vIMUs);
+
 private:
     int mWindowSize;
     unsigned long mFrameId;
     State mState;
-    // std::shared_ptr<FeatureManager> mpFM;
     FeatureManager* mpFM;
     std::vector<Frame> mvFrames;
 
     Eigen::Matrix3d mK;
     Initializer* mpInitializer;
+
+    double mdLastTimestamp;
+
+    // Preintegration data
+    Eigen::Matrix<double, 15, 15> mPreintCovMat;
 };
 
     

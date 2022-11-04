@@ -7,7 +7,7 @@
 namespace Naive_SLAM_ROS{
 
 StateEstimator::StateEstimator(const std::string& strParamFile):
-mFrameId(0), mState(INITS1){
+mFrameId(0), mState(INITS1), mdLastTimestamp(-1){
     cv::FileStorage fs(strParamFile.c_str(), cv::FileStorage::READ);
     if (!fs.isOpened()) {
         std::cout << "[Estimator] Param file not exist..." << std::endl;
@@ -22,6 +22,8 @@ mFrameId(0), mState(INITS1){
     // mpFM = std::make_shared<FeatureManager>(mWindowSize);
     mpFM = new FeatureManager(mWindowSize);
     mpInitializer = new Initializer(20, 18, mK, mpFM);
+
+    mPreintCovMat.setZero();
 }
 
 void StateEstimator::Estimate(const std::pair<Frame, std::vector<IMU>>& meas){
@@ -29,8 +31,10 @@ void StateEstimator::Estimate(const std::pair<Frame, std::vector<IMU>>& meas){
     mvFrames.emplace_back(frame);
     mpFM->Manage(frame, mFrameId, mvFrames.size() - 1);
     mFrameId++;
-    if(mvFrames.size() == 1) // first frame
+    if(mvFrames.size() == 1){// first frame
+        mdLastTimestamp = frame.mdTimestamp;
         return;
+    } 
     if(mState == INITS1 || mState == INITS2){
         int flag = VisualInit();
         if(flag == 1){
@@ -65,5 +69,16 @@ int StateEstimator::VisualInit(){
     }
     return 0;
 }
-    
+
+void StateEstimator::Preintegrate(std::vector<IMU>& vIMUs){
+    double tmpT = mdLastTimestamp;
+    for(int i = 0; i < vIMUs.size(); i++){
+        auto imu = vIMUs[i];
+        double dt = imu.mdTimestamp - tmpT;
+
+
+        tmpT = imu.mdTimestamp;
+    }
+}
+
 } // namespace Naive_SLAM_ROS
