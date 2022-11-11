@@ -13,6 +13,7 @@
 #include "GeometryFunc.h"
 #include "Optimizer.h"
 #include "Initializer.h"
+#include "TypeConverter.h"
 
 namespace Naive_SLAM_ROS {
 
@@ -28,28 +29,39 @@ public:
         LOST = 5
     };
 
-    void Estimate(const std::pair<Frame, std::vector<IMU>>& pMeas);
+    void Estimate(const std::pair<PointCloud, std::vector<IMU>>& pMeas);
 
-    int VisualInit();
+    int VisualOnlyInit();
     int SolveRelativePose(const std::vector<Eigen::Vector2d> &vPts0, const std::vector<Eigen::Vector2d> &vPts1,
                           cv::Mat &R10, cv::Mat &t10);
 
-    void Preintegrate(std::vector<IMU>& vIMUs);
+    void Preintegrate(Frame* frame, const std::vector<IMU>& vIMUs);
 
 private:
     int mWindowSize;
     unsigned long mFrameId;
     State mState;
     FeatureManager* mpFM;
-    std::vector<Frame> mvFrames;
+    std::vector<Frame*> mvpFrames;
 
     Eigen::Matrix3d mK;
-    Initializer* mpInitializer;
 
-    double mdLastTimestamp;
+    // double mdLastTimestamp; // last frame timestamp
 
     // Preintegration data
-    Eigen::Matrix<double, 15, 15> mPreintCovMat;
+    Eigen::Vector3d mLastGyrBias;
+    Eigen::Vector3d mLastAccBias;
+    double mGyrNoise;
+    double mAccNoise;
+    double mGyrBiasWalk;
+    double mAccBiasWalk;
+
+    // Eigen::Matrix4d mTbc;
+    Sophus::SE3d mTbc;
+
+    Initializer* mpInitializer;
+    Frame* mpLastFrame;
+    std::vector<IMU> mvLastIMUs;
 };
 
     

@@ -52,7 +52,7 @@ public:
 class FeatureManager{
 public:
     FeatureManager(int windowSize);
-    void Manage(const Frame& frame, unsigned long frameId, int startId);
+    void Manage(const PointCloud& pc, unsigned long frameId, int startId);
     int GetChains(int chainLen, std::vector<FeatureChain>& vChains) const;
     const std::unordered_map<unsigned long, FeatureChain>& GetChains() const;
 

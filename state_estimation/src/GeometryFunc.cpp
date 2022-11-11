@@ -62,8 +62,10 @@ void GeometryFunc::SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const st
                         cvr21, cvt21, false, 100, 2, 0.99, inliers, cv::SOLVEPNP_EPNP);
     
     cv::Rodrigues(cvr21, cvR21);
-    R21 = TypeConverter::MatCVtoEigen(cvR21);
-    t21 = TypeConverter::VecCVtoEigen(cvt21);
+    // R21 = TypeConverter::MatCVtoEigen(cvR21);
+    // t21 = TypeConverter::VecCVtoEigen(cvt21);
+    TypeConverter::MatCVtoEigen(cvR21, R21);
+    TypeConverter::VecCVtoEigen(cvt21, t21);
 }
     
 } // namespace Naive_SLAM_ROS

@@ -30,16 +30,41 @@ public:
         return g2o::SE3Quat(R, t);
     }
     
-    static Eigen::Vector3d VecCVtoEigen(const cv::Mat& vec){
-        return Eigen::Vector3d(vec.at<double>(0), vec.at<double>(1), vec.at<double>(2));
+    // static Eigen::Vector3d VecCVtoEigen(const cv::Mat& vec){
+    //     return Eigen::Vector3d(vec.at<double>(0), vec.at<double>(1), vec.at<double>(2));
+    // }
+
+    static void VecCVtoEigen(const cv::Mat& vec, Eigen::Vector3d& v){
+        v << vec.at<double>(0), vec.at<double>(1), vec.at<double>(2);
     }
 
-    static Eigen::Matrix3d MatCVtoEigen(const cv::Mat& mat){
-        Eigen::Matrix3d m;
+    // static Eigen::Matrix3d MatCVtoEigen(const cv::Mat& mat){
+    //     Eigen::Matrix3d m;
+    //     m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2),
+    //          mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2),
+    //          mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2);
+    //     return m;
+    // }
+
+    static void MatCVtoEigen(const cv::Mat& mat, Eigen::Matrix3d& m){
         m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2),
              mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2),
              mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2);
-        return m;
+    }
+
+    static void MatCVtoEigen(const cv::Mat& mat, Eigen::Matrix4d& m){
+        m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2), mat.at<double>(0, 3),
+             mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2), mat.at<double>(1, 3),
+             mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2); mat.at<double>(2, 3),
+             mat.at<double>(3, 0) , mat.at<double>(3, 1), mat.at<double>(3, 2); mat.at<double>(3, 3);
+    }
+
+    static void MatEigentoCv(const Eigen::Matrix3d& m, cv::Mat& mat){
+        mat = cv::Mat::eye(3, 3, CV_32F);
+        mat.at<double>(0, 0) = m(0, 0);
+        mat.at<double>(0, 2) = m(0, 2);
+        mat.at<double>(1, 1) = m(1, 1);
+        mat.at<double>(1, 2) = m(1, 2);
     }
 
     static cv::Mat SE3toT(const g2o::SE3Quat& SE3Quat){

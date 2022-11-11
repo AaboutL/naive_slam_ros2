@@ -6,31 +6,19 @@
 
 namespace Naive_SLAM_ROS{
 
-IMU::IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr):
-mdTimestamp(timestamp), mAcc(acc), mGyr(gyr), mVel(Eigen::Vector3d::Zero()),
-mAccBias(Eigen::Vector3d::Zero()), mGyrBias(Eigen::Vector3d::Zero()){
+IMU::IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr, double dt):
+mdTimestamp(timestamp), mAcc(acc), mGyr(gyr), mVel(Eigen::Vector3d::Zero()), mdt(dt){
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+IMU::IMU(const IMU& imu):
+mdTimestamp(imu.mdTimestamp), mAcc(imu.mAcc), mGyr(imu.mGyr), mVel(imu.mVel), mdt(imu.mdt){}
 
-// Preintegrator::Preintegrator(const Eigen::Matrix<double, 15, 15>& cov,
-//                              const Eigen::Matrix3d& JRbg,
-//                              const Eigen::Matrix3d& JVba,
-//                              const Eigen::Matrix3d& JVbg,
-//                              const Eigen::Matrix3d& JPba,
-//                              const Eigen::Matrix3d& JPbg,
-//                              const Eigen::DiagonalMatrix<double, 6>& noiseGyrAcc,
-//                              const Eigen::DiagonalMatrix<double, 6>& noiseGyrAccWalk):
-// mdLastTimestamp(-1), mDeltaR(Eigen::Matrix3d::Identity()), mDeltaV(Eigen::Vector3d::Zero()),
-// mDeltaP(Eigen::Vector3d::Zero()), mCov(cov), 
-// mJRbg(JRbg),mJVba(JVba),mJVbg(JVbg),mJPba(JPba),mJPbg(JPbg),
-// mNoiseGyrAcc(noiseGyrAcc), mNoiseGyrAccWalk(noiseGyrAccWalk){
-// }
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Preintegrator::Preintegrator(const Eigen::DiagonalMatrix<double, 6>& noiseGyrAcc,
                              const Eigen::DiagonalMatrix<double, 6>& noiseGyrAccWalk,
                              const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias):
-mdLastTimestamp(-1), mNoiseGyrAcc(noiseGyrAcc), mNoiseGyrAccWalk(noiseGyrAccWalk),
+mGyrAccNoise(noiseGyrAcc), mGyrAccBiasWalk(noiseGyrAccWalk),
 mGyrBias(gyrBias), mAccBias(accBias){
     mDeltaR.setIdentity();
     mDeltaV.setZero();
@@ -44,11 +32,39 @@ mGyrBias(gyrBias), mAccBias(accBias){
     mDeltaGyrBias.setZero();
     mDeltaAccBias.setZero();
     mvIMUMeas.clear();
+    mdT = 0;
+}
+
+Preintegrator::Preintegrator(double gyrNoise, double accNoise, double gyrBiasWalk, double accBiasWalk,
+                             const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias):
+mGyrBias(gyrBias), mAccBias(accBias){
+
+    mDeltaR.setIdentity();
+    mDeltaV.setZero();
+    mDeltaP.setZero();
+    mCov.setZero();
+    mJRbg.setZero();
+    mJVba.setZero();
+    mJVbg.setZero();
+    mJPba.setZero();
+    mJPbg.setZero();
+
+    mGyrAccNoise.diagonal() << gyrNoise*gyrNoise, gyrNoise*gyrNoise, gyrNoise*gyrNoise,
+                               accNoise*accNoise, accNoise*accNoise, accNoise*accNoise;
+    mGyrAccBiasWalk.diagonal() << gyrBiasWalk*gyrBiasWalk, gyrBiasWalk*gyrBiasWalk, gyrBiasWalk*gyrBiasWalk,
+                                  accBiasWalk*accBiasWalk, accBiasWalk*accBiasWalk, accBiasWalk*accBiasWalk;
+
+    mDeltaGyrBias.setZero();
+    mDeltaAccBias.setZero();
+    mvIMUMeas.clear();
+    mdT = 0;
 }
     
 void Preintegrator::Integrate(const IMU& imu){
     mvIMUMeas.emplace_back(imu);
-    double dt = imu.mdTimestamp - mdLastTimestamp;
+    double dt = imu.mdt;
+    mdT += dt;
+
     Eigen::Vector3d gyr, acc;
     gyr = imu.mGyr - mGyrBias;
     acc = imu.mAcc - mAccBias;
@@ -67,8 +83,8 @@ void Preintegrator::Integrate(const IMU& imu){
     B.block<3, 3>(0, 0) = rightJ * dt;
     B.block<3, 3>(3, 3) = mDeltaR * dt;
     B.block<3, 3>(6, 3) = 0.5 * mDeltaR * dt * dt;
-    mCov.block<9, 9>(0, 0) = A * mCov.block<9, 9>(0, 0) * A.transpose() + B * mNoiseGyrAcc * B.transpose();
-    mCov.block<6, 6>(9, 9) += mNoiseGyrAccWalk;
+    mCov.block<9, 9>(0, 0) = A * mCov.block<9, 9>(0, 0) * A.transpose() + B * mGyrAccNoise * B.transpose();
+    mCov.block<6, 6>(9, 9) += mGyrAccBiasWalk;
 
     mJPba = mJPba + mJVba * dt - 0.5 * mDeltaR * dt * dt;
     mJPbg = mJPbg + mJVbg * dt - 0.5 * mDeltaR * acc_hat * mJRbg * dt * dt;
@@ -80,6 +96,7 @@ void Preintegrator::Integrate(const IMU& imu){
     IntegrateV(acc, dt);
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
+
 }
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
@@ -110,19 +127,23 @@ void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vec
     mDeltaAccBias = accBias - mAccBias;
     mGyrBias = gyrBias;
     mAccBias = accBias;
-    for(const auto& imu : mvIMUMeas){
+
+    auto imus = mvIMUMeas;
+    mvIMUMeas.clear();
+    mdT = 0;
+    for(const auto& imu : imus){
         Integrate(imu);
     }
 }
 
 void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
-                        Eigen::Vector3d& updateDeltaP, Eigen::Vector3d& updateDeltaV,
-                        Eigen::Matrix3d& updateDeltaR){
+                        Eigen::Vector3d& updatedDeltaP, Eigen::Vector3d& updatedDeltaV,
+                        Eigen::Matrix3d& updatedDeltaR){
     Eigen::Vector3d deltaGyrBias = gyrBias - mGyrBias;
     Eigen::Vector3d deltaAccBias = accBias - mAccBias;
-    updateDeltaP = UpdateDeltaP(deltaGyrBias, deltaAccBias);
-    updateDeltaV = UpdateDeltaV(deltaGyrBias, deltaAccBias);
-    updateDeltaR = UpdateDeltaR(deltaGyrBias);
+    updatedDeltaP = UpdateDeltaP(deltaGyrBias, deltaAccBias);
+    updatedDeltaV = UpdateDeltaV(deltaGyrBias, deltaAccBias);
+    updatedDeltaR = UpdateDeltaR(deltaGyrBias);
 }
 
 Eigen::Matrix3d Preintegrator::UpdateDeltaR(const Eigen::Vector3d& deltaGyrBias){
@@ -137,6 +158,42 @@ Eigen::Vector3d Preintegrator::UpdateDeltaP(const Eigen::Vector3d& deltaGyrBias,
     return mDeltaP + mJPbg * deltaGyrBias + mJPba * deltaAccBias;
 }
 
+Eigen::Matrix3d Preintegrator::GetDeltaR() const{
+    return mDeltaR;
+}
+
+Eigen::Vector3d Preintegrator::GetDeltaV() const{
+    return mDeltaV;
+}
+
+Eigen::Vector3d Preintegrator::GetDeltaP() const{
+    return mDeltaP;
+}
+
+Eigen::Matrix3d Preintegrator::GetJRbg() const{
+    return mJRbg;
+}
+Eigen::Matrix3d Preintegrator::GetJVba() const{
+    return mJVba;
+}
+Eigen::Matrix3d Preintegrator::GetJVbg() const{
+    return mJVbg;
+}
+Eigen::Matrix3d Preintegrator::GetJPba() const{
+    return mJPba;
+}
+Eigen::Matrix3d Preintegrator::GetJPbg() const{
+    return mJPbg;
+}
+
+Eigen::Matrix<double, 15, 15> Preintegrator::GetCov() const{
+    return mCov;
+}
+
+
+double Preintegrator::GetDeltaT() const{
+    return mdT;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -172,5 +229,6 @@ Eigen::Matrix3d InverseRightJacobian(const Eigen::Vector3d& v){
     }
     return R;
 }
+
 
 } // namespace Naive_SLAM_ROS

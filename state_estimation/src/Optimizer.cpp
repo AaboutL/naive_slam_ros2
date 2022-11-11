@@ -7,7 +7,7 @@
 
 namespace Naive_SLAM_ROS{
 
-int Optimizer::VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, std::shared_ptr<FeatureManager> pFM,
+int Optimizer::VisualOnlyInitBAInvertDepth(Frame& frame1, Frame& frame2, std::shared_ptr<FeatureManager> pFM,
                         std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K){
@@ -110,7 +110,7 @@ int Optimizer::VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, std::shared
     }
 }
 
-int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2, 
+int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2, 
                         FeatureManager* pFM, std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K){
@@ -127,13 +127,13 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2,
     int vertexIdx = 0;
     // add pose vertex
     auto *vSE31 = new g2o::VertexSE3Expmap();
-    vSE31->setEstimate(g2o::SE3Quat(frame1.mRcw, frame1.mtcw));
+    vSE31->setEstimate(g2o::SE3Quat(frame1->mRcw, frame1->mtcw));
     vSE31->setId(vertexIdx++);
     vSE31->setFixed(true);
     optimizer.addVertex(vSE31);
 
     auto *vSE32 = new g2o::VertexSE3Expmap();
-    vSE32->setEstimate(g2o::SE3Quat(frame2.mRcw, frame2.mtcw));
+    vSE32->setEstimate(g2o::SE3Quat(frame2->mRcw, frame2->mtcw));
     vSE32->setId(vertexIdx++);
     optimizer.addVertex(vSE32);
 
@@ -206,8 +206,8 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2,
     }
     std::cout << "points square error after optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
 
-    frame1.SetTcw(vSE31->estimate().to_homogeneous_matrix());
-    frame2.SetTcw(vSE32->estimate().to_homogeneous_matrix());
+    frame1->SetTcw(vSE31->estimate().to_homogeneous_matrix());
+    frame2->SetTcw(vSE32->estimate().to_homogeneous_matrix());
 
     for(auto& p : vVid2Cid){
         auto vertexId = p.first;
@@ -216,12 +216,12 @@ int Optimizer::VisualInitBA(Frame& frame1, Frame& frame2,
         pFM->SetWorldPos(chainId, vPoint->estimate());
         pFM->SetChainGood(chainId, true);
     }
-    std::cout << "[Optimizer::VisualInitBA] finished" << std::endl;
+    std::cout << "[Optimizer::VisualOnlyInitBA] finished" << std::endl;
     return 1;
 }
 
 
-int Optimizer::VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM, const Eigen::Matrix3d& K){
+int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, const Eigen::Matrix3d& K){
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
             std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -235,9 +235,9 @@ int Optimizer::VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM, const 
     int vertexIdx = 0;
     // add pose vertex
     std::vector<g2o::VertexSE3Expmap*> vPoses;
-    for(int i = 0; i < vFrames.size(); i++){
+    for(int i = 0; i < vpFrames.size(); i++){
         auto *vSE3 = new g2o::VertexSE3Expmap();
-        vSE3->setEstimate(g2o::SE3Quat(vFrames[i].mRcw, vFrames[i].mtcw));
+        vSE3->setEstimate(g2o::SE3Quat(vpFrames[i]->mRcw, vpFrames[i]->mtcw));
         vSE3->setFixed(vertexIdx == 0);
         vSE3->setId(vertexIdx++);
         optimizer.addVertex(vSE3);
@@ -303,8 +303,8 @@ int Optimizer::VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM, const 
     optimizer.setVerbose(true);
     optimizer.optimize(20);
 
-    for(int i = 0; i < vFrames.size(); i++){
-        vFrames[i].SetTcw(vPoses[i]->estimate().to_homogeneous_matrix());
+    for(int i = 0; i < vpFrames.size(); i++){
+        vpFrames[i]->SetTcw(vPoses[i]->estimate().to_homogeneous_matrix());
     }
 
     sum_chi2 = 0;
@@ -342,5 +342,92 @@ int Optimizer::VisualBA(std::vector<Frame>& vFrames, FeatureManager* pFM, const 
     return goodChainNum;
 }
 
+int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
+    g2o::SparseOptimizer optimizer;
+    std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
+            std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    std::unique_ptr<g2o::BlockSolver_6_3> solver_ptr =
+            std::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
+    auto *solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+    optimizer.setAlgorithm(solver);
+
+    int usedFrameNum = vpFrames.size() - 1;
+    for(int i = 0; i < usedFrameNum; i++){
+        auto* pF = vpFrames[i];
+
+        VertexPose* vPose = new VertexPose(pF->GetTbc(), pF->GetTcw());
+        vPose->setId(i);
+        vPose->setFixed(true);
+        optimizer.addVertex(vPose);
+
+        VertexVelocity* vVel = new VertexVelocity(pF->GetVelocity());
+        vVel->setId(i + usedFrameNum);
+        vVel->setFixed(false);
+        optimizer.addVertex(vVel);
+    }
+
+    // bias
+    VertexGyrBias* vGB = new VertexGyrBias(vpFrames.front()->GetGyrBias());
+    vGB->setId(usedFrameNum * 2);
+    vGB->setFixed(false);
+    optimizer.addVertex(vGB);
+
+    VertexAccBias* vAB = new VertexAccBias(vpFrames.front()->GetAccBias());
+    vAB->setId(usedFrameNum * 2 + 1);
+    vAB->setFixed(false);
+    optimizer.addVertex(vAB);
+
+    // Gdir
+    VertexGDir* vGdir = new VertexGDir(Rwg);
+    vGdir->setId(usedFrameNum * 2 + 2);
+    vGdir->setFixed(false);
+    optimizer.addVertex(vGdir);
+    
+    // scale
+    VertexScale* vS = new VertexScale(scale);
+    vS->setId(usedFrameNum * 2 + 3);
+    vS->setFixed(false);
+    optimizer.addVertex(vS);
+
+    // prior edge
+    EdgePriorAccBias* ePAB = new EdgePriorAccBias(Eigen::Vector3d(0, 0, 0));
+    ePAB->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vAB));
+    ePAB->setInformation(Eigen::Matrix3d::Identity() * priorAcc);
+    optimizer.addEdge(ePAB);
+
+    EdgePriorGyrBias* ePGB = new EdgePriorGyrBias(Eigen::Vector3d(0, 0, 0));
+    ePGB->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vAB));
+    ePGB->setInformation(Eigen::Matrix3d::Identity() * priorGyr);
+    optimizer.addEdge(ePGB);
+
+    for(int i = 0; i < usedFrameNum - 1; i++){
+        auto* pF = vpFrames[i];
+
+        auto* vPose1 = optimizer.vertex(i);
+        auto* vVel1 = optimizer.vertex(i + usedFrameNum);
+        auto* vPose2 = optimizer.vertex(i + 1);
+        auto* vVel2 = optimizer.vertex(i + 1 + usedFrameNum);
+        auto* vGB = optimizer.vertex(usedFrameNum * 2);
+        auto* vAB = optimizer.vertex(usedFrameNum * 2 + 1);
+        auto* vGdir = optimizer.vertex(usedFrameNum * 2 + 2);
+        auto* vS = optimizer.vertex(usedFrameNum * 2 + 3);
+
+        auto* eInertialGS = new EdgeInertialGS(pF->mpPreintegrator);
+        eInertialGS->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vPose1));
+        eInertialGS->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vVel1));
+        eInertialGS->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vGB));
+        eInertialGS->setVertex(3, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vAB));
+        eInertialGS->setVertex(4, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vPose2));
+        eInertialGS->setVertex(5, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vVel2));
+        eInertialGS->setVertex(6, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vGdir));
+        eInertialGS->setVertex(7, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vS));
+        optimizer.addEdge(eInertialGS);
+    }
+
+    optimizer.setVerbose(true);
+    optimizer.initializeOptimization();
+    optimizer.optimize(200);
+
+}
     
 } // namespace Naive_SLAM_ROS

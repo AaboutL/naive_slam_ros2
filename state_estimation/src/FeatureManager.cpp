@@ -67,14 +67,14 @@ FeatureManager::FeatureManager(int windowSize):
 mWindowSize(windowSize){
 }
 
-void FeatureManager::Manage(const Frame& frame, unsigned long frameId, int startId){
-    if(startId == 0){ // If this is the first frame in mqFrames, then nothing to be managed.
+void FeatureManager::Manage(const PointCloud& pc, unsigned long frameId, int startId){
+    if(startId == 0){ // If this is the first pc in mqPointClouds, then nothing to be managed.
                       // This only should happend when system just start or need relocalize;
         return;
     }
-    for(int i = 0; i < frame.mvPtsUn.size(); i++){
-        auto chainId = frame.mvChainIds[i];
-        Feature feat(chainId, frameId, frame.mvPtsUn[i], frame.mvPtUnOffsets[i]);
+    for(int i = 0; i < pc.mvPtsUn.size(); i++){
+        auto chainId = pc.mvChainIds[i];
+        Feature feat(chainId, frameId, pc.mvPtsUn[i], pc.mvPtUnOffsets[i]);
         
         if(mmChains.find(chainId) != mmChains.end()){ // This chainId already exist, just add feature
             mmChains.find(chainId)->second.AddFeature(feat);
@@ -82,7 +82,7 @@ void FeatureManager::Manage(const Frame& frame, unsigned long frameId, int start
         else{ // This ChainId not exist. Need create a new one; Also need create a former feature
             FeatureChain featureChain(chainId, mWindowSize, startId - 1);
 
-            Eigen::Vector2d ptUnFormer = frame.mvPtsUn[i] - frame.mvPtUnOffsets[i];
+            Eigen::Vector2d ptUnFormer = pc.mvPtsUn[i] - pc.mvPtUnOffsets[i];
             Eigen::Vector2d ptUnOffsetsFormer(0, 0);
             Feature featFormer(chainId, frameId - 1, ptUnFormer, ptUnOffsetsFormer);
             featureChain.AddFeature(featFormer);

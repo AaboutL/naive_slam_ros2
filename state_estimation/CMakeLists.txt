@@ -31,16 +31,18 @@ file(GLOB G2O_LIBS ${G2O_ROOT}/lib/*.so)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/include/g2oTypes
         ${EIGEN3_INCLUDE_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${G2O_ROOT}/include
+        /home/parallels/3rdparty/Sophus
 )
 
-FILE(GLOB CPPS ${PROJECT_SOURCE_DIR}/src/*)
+FILE(GLOB_RECURSE CPPS ${PROJECT_SOURCE_DIR}/src *cpp)
 add_library(${PROJECT_NAME} SHARED
         ${CPPS}
         )
-
+message(${CPPS})
 target_link_libraries(${PROJECT_NAME}
         ${OpenCV_LIBS}
         ${G2O_LIBS}

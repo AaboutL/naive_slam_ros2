@@ -32,13 +32,12 @@ public:
 private:
     void PointCloudCallback(const sensor_msgs::msg::PointCloud::ConstSharedPtr& pc_msg);
     void IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPtr& imu_msg);
-    std::vector<std::pair<Frame, std::vector<IMU>>> BindIMUAndImage();
+    std::vector<std::pair<PointCloud, std::vector<IMU>>> BindImageAndIMUs();
     void Run();
-    void ProcessFrame(Frame& frame);
 
 private:
 
-    std::queue<Frame> mqFrames;
+    std::queue<PointCloud> mqPointClouds;
     std::queue<IMU> mqIMUs;
 
     StateEstimator* mpEstimator;

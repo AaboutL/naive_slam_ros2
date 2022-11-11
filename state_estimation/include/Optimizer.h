@@ -23,6 +23,9 @@
 #include "GeometryFunc.h"
 #include "G2OTypes.h"
 
+#include "Vertices.h"
+#include "Edges.h"
+
 #include <rclcpp/rclcpp.hpp>
 
 #define EPSILON 0.000000000001
@@ -34,23 +37,25 @@ public:
     static int PoseOptimize();
 
     // invert depth optimization, not fully correct
-    static int VisualInitBAInvertDepth(Frame& frame1, Frame& frame2, 
+    static int VisualOnlyInitBAInvertDepth(Frame& frame1, Frame& frame2, 
                         std::shared_ptr<FeatureManager> pFM,
                         std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
 
-    static int VisualInitBA(Frame& frame1, Frame& frame2, 
+    static int VisualOnlyInitBA(Frame* frame1, Frame* frame2, 
                         // std::shared_ptr<FeatureManager>& pFM,
                         FeatureManager* pFM,
                         std::vector<Eigen::Vector3d>& vPts3D,
                         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
                         std::vector<unsigned long>& vChainIds, const Eigen::Matrix3d& K);
     
-    static int VisualBA(std::vector<Frame>& vFrames, 
+    static int VisualOnlyBA(std::vector<Frame*>& vpFrames, 
                         // std::shared_ptr<FeatureManager>& pFM, 
                         FeatureManager* pFM, 
                         const Eigen::Matrix3d& K);
+    
+    static int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr);
 };
     
 } // namespace Naive_SLAM_ROS

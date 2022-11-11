@@ -36,10 +36,10 @@ void StateEstimationNode::PointCloudCallback(const sensor_msgs::msg::PointCloud:
     }
 
     auto ts = rclcpp::Time(pc_msg->header.stamp.sec, pc_msg->header.stamp.nanosec);
-    Frame frame(ts.seconds(), vChainIds, vPtsUn, vPts, vPtUnOffsets);
+    PointCloud pc(ts.seconds(), vChainIds, vPtsUn, vPts, vPtUnOffsets);
 
     mMutexBuffer.lock();
-    mqFrames.emplace(frame);
+    mqPointClouds.emplace(pc);
     mMutexBuffer.unlock();
     mConditionVar.notify_one();
 }
@@ -53,7 +53,7 @@ void StateEstimationNode::IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPt
     double wz = imu_msg->angular_velocity.z;
 
     auto ts = rclcpp::Time(imu_msg->header.stamp.sec, imu_msg->header.stamp.nanosec);
-    IMU imu(ts.seconds(), Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz));
+    IMU imu(ts.seconds(), Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz), -1);
     
     mMutexBuffer.lock();
     mqIMUs.emplace(imu);
@@ -61,44 +61,44 @@ void StateEstimationNode::IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPt
     mConditionVar.notify_one();
 }
 
-std::vector<std::pair<Frame, std::vector<IMU>>> StateEstimationNode::BindIMUAndImage(){
-    std::vector<std::pair<Frame, std::vector<IMU>>> mvMeasurements;
+std::vector<std::pair<PointCloud, std::vector<IMU>>> StateEstimationNode::BindImageAndIMUs(){
+    std::vector<std::pair<PointCloud, std::vector<IMU>>> mvMeasurements;
     while(true){
-        if(mqIMUs.empty() || mqFrames.empty()){
-            // until mqIMUs or mqFrames was all taken off, then return
+        if(mqIMUs.empty() || mqPointClouds.empty()){
+            // until mqIMUs or mqPointClouds was all taken off, then return
             return mvMeasurements;
         }
-        if(mqIMUs.back().mdTimestamp <= mqFrames.front().mdTimestamp){
-            // The newest imu in mqIMUs is older than the oldest frame in mqFrames, just wait for more imu
+        if(mqIMUs.back().mdTimestamp <= mqPointClouds.front().mdTimestamp){
+            // The newest imu in mqIMUs is older than the oldest frame in mqPointClouds, just wait for more imu
             return mvMeasurements;
         }
-        if(mqIMUs.front().mdTimestamp >= mqFrames.front().mdTimestamp){
+        if(mqIMUs.front().mdTimestamp >= mqPointClouds.front().mdTimestamp){
             // The oldest imu came after the oldest frame, so the frames that came before imu need to be removed.
-            mqFrames.pop();
+            mqPointClouds.pop();
             continue;
         }
 
         // Now we get some imus came before the oldest frame and some imus came after the oldest frame
-        Frame oneFrame = mqFrames.front();
-        mqFrames.pop();
+        PointCloud onePointCloud = mqPointClouds.front();
+        mqPointClouds.pop();
         std::vector<IMU> vIMUs;
-        while(mqIMUs.front().mdTimestamp < oneFrame.mdTimestamp){
+        while(mqIMUs.front().mdTimestamp < onePointCloud.mdTimestamp){
             vIMUs.emplace_back(mqIMUs.front());
             mqIMUs.pop();
         }
         vIMUs.emplace_back(mqIMUs.front());
-        mvMeasurements.emplace_back(std::make_pair(oneFrame, vIMUs));
+        mvMeasurements.emplace_back(std::make_pair(onePointCloud, vIMUs));
     }
     return mvMeasurements;
 }
 
 void StateEstimationNode::Run(){
     while(true){
-        std::vector<std::pair<Frame, std::vector<IMU>>> vMeasurements;
+        std::vector<std::pair<PointCloud, std::vector<IMU>>> vMeasurements;
         std::unique_lock<std::mutex> ulk(mMutexBuffer);
         mConditionVar.wait(ulk, [&]
         {
-            return (vMeasurements = BindIMUAndImage()).size() != 0;
+            return (vMeasurements = BindImageAndIMUs()).size() != 0;
         });
         ulk.unlock();
         for(auto & meas : vMeasurements){
@@ -109,7 +109,5 @@ void StateEstimationNode::Run(){
     }
 }
 
-void StateEstimationNode::ProcessFrame(Frame& frame){
-}
 
 } // namespace naive_slam_ros

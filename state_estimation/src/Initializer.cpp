@@ -7,16 +7,18 @@
 
 namespace Naive_SLAM_ROS{
 
-Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM):
-mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM){
+Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM,
+                        Sophus::SE3d& Tbc):
+mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM), 
+mTbc(Tbc), mTcb(Tbc.inverse()){
 }
 
 
-bool Initializer::VisualInitS1(std::vector<Frame>& vFrames, std::vector<Eigen::Vector3d>& vPts3D, 
+bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Eigen::Vector3d>& vPts3D, 
         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
         std::vector<unsigned long>& vChainIds){
 
-    auto frameNum = vFrames.size();
+    auto frameNum = vpFrames.size();
     int matchNum = mpFM->GetMatches(0, frameNum-1, vPts2D1, vPts2D2, vChainIds);
 
     std::vector<cv::Vec2f> cvPts2D1(matchNum), cvPts2D2(matchNum);
@@ -34,21 +36,25 @@ bool Initializer::VisualInitS1(std::vector<Frame>& vFrames, std::vector<Eigen::V
         return false;
 
     cv::Mat mask, cvR21, cvt21, K;
-    cv::eigen2cv(mK, K);
+    TypeConverter::MatEigentoCv(mK, K);
     cv::Mat EMat = cv::findEssentialMat(cvPts2D1, cvPts2D2, K, cv::RANSAC, 0.999, 3.84, mask);
     int inlier_cnt = cv::recoverPose(EMat, cvPts2D1, cvPts2D2, K, cvR21, cvt21, mask);
-    Eigen::Matrix3d R21 = TypeConverter::MatCVtoEigen(cvR21);
-    Eigen::Vector3d t21 = TypeConverter::VecCVtoEigen(cvt21);
-    vFrames.back().SetTcw(R21, t21);
+    Eigen::Matrix3d R21;
+    Eigen::Vector3d t21;
+    TypeConverter::MatCVtoEigen(cvR21, R21);
+    TypeConverter::VecCVtoEigen(cvt21, t21);
+    vpFrames.back()->SetTcw(R21, t21);
 
-    vPts3D = TriangulateTwoFrame(vFrames.front().mRcw, vFrames.front().mtcw, 
-        vFrames.back().mRcw, vFrames.back().mtcw, vPts2D1, vPts2D2, vChainIds);
+    vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
+        vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
 
     mInitIdx = frameNum - 1;
+
+    Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames.back(), mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
     return true;
 }
     
-bool Initializer::VisualInitS2(std::vector<Frame>& vFrames){
+bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
     // first deal with frames between 0 and mInitIdx
     for(int i = 1; i < mInitIdx; i++){
 
@@ -60,14 +66,14 @@ bool Initializer::VisualInitS2(std::vector<Frame>& vFrames){
         Eigen::Matrix3d Rcw2;
         Eigen::Vector3d tcw2;
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
-        vFrames[i].SetTcw(Rcw2, tcw2);
+        vpFrames[i]->SetTcw(Rcw2, tcw2);
 
-        TriangulateTwoFrame(vFrames[0].mRcw, vFrames[0].mtcw, 
-            vFrames[i].mRcw, vFrames[i].mtcw, vPts1, vPts2, vChainIds);
+        TriangulateTwoFrame(vpFrames[0]->mRcw, vpFrames[0]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
 
     // second deal with frames between mInitIdx and mWindowSize - 1
-    for(int i = mInitIdx + 1; i < vFrames.size(); i++){
+    for(int i = mInitIdx + 1; i < vpFrames.size(); i++){
         std::vector<Eigen::Vector3d> vPts3D;
         std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
         std::vector<unsigned long> vChainIds;
@@ -76,10 +82,10 @@ bool Initializer::VisualInitS2(std::vector<Frame>& vFrames){
         Eigen::Matrix3d Rcw2;
         Eigen::Vector3d tcw2;
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
-        vFrames[i].SetTcw(Rcw2, tcw2);
+        vpFrames[i]->SetTcw(Rcw2, tcw2);
 
-        TriangulateTwoFrame(vFrames[i - 1].mRcw, vFrames[i - 1].mtcw, 
-            vFrames[i].mRcw, vFrames[i].mtcw, vPts1, vPts2, vChainIds);
+        TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
 
     // third: deal with all other chains from 1 to mInitIdx
@@ -89,10 +95,11 @@ bool Initializer::VisualInitS2(std::vector<Frame>& vFrames){
         std::vector<unsigned long> vChainIds;
         int matchNum = mpFM->GetMatches(i - 1, i, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
 
-        TriangulateTwoFrame(vFrames[i - 1].mRcw, vFrames[i - 1].mtcw, 
-            vFrames[i].mRcw, vFrames[i].mtcw, vPts1, vPts2, vChainIds);
+        TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
 
+    int goodChainNum = Optimizer::VisualOnlyBA(vpFrames, mpFM, mK);
     return true;
 }
 
@@ -151,6 +158,33 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
     }
 
     return vPts3D;
+}
+
+bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
+    // manage initial value
+    Eigen::Matrix3d Rwg;
+    Eigen::Vector3d dirG(0, 0, 0);
+    auto firstTimestamp = vpFrames.front()->mdTimestamp;
+    for(int i = 1; i < vpFrames.size(); i++){
+        auto pPreF = vpFrames[i - 1];
+        auto pCurF = vpFrames[i];
+        Eigen::Matrix3d Rwbi = pPreF->mRwc * mTcb.rotationMatrix();
+        dirG -= Rwbi * pCurF->mpPreintegrator->GetDeltaV();
+        double dT = pCurF->mdTimestamp - pPreF->mdTimestamp;
+        Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
+        pPreF->SetVelocity(vel);
+    }
+    dirG.normalize();
+    Eigen::Vector3d gI(0, 0, -1);
+    Eigen::Vector3d v = gI.cross(dirG);
+    v = v / v.norm();
+    double ang = acos(gI.dot(dirG));
+    Eigen::Vector3d vzg = ang * v;
+    Rwg = Sophus::SO3d::exp(vzg).matrix();
+
+    double scale = 1.0;
+
+    Optimizer::VIInitOptimize(vpFrames, Rwg, scale, 1e2, 1e10);
 }
 
 } // namespace Naive_SLAM_ROS

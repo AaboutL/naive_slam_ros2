@@ -19,36 +19,47 @@ namespace Naive_SLAM_ROS
 
 class IMU{
 public:
-    IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr);
+    IMU(){}
+    IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr, double dt);
+    IMU(const IMU& imu);
 public:
     double mdTimestamp;
     Eigen::Vector3d mAcc;
     Eigen::Vector3d mGyr;
     Eigen::Vector3d mVel;
-    Eigen::Vector3d mAccBias;
-    Eigen::Vector3d mGyrBias;
+    double mdt; // duration between last and cur
 };
 
 class Preintegrator{
 public:
-    // Preintegrator(const Eigen::Matrix<double, 15, 15>& cov,
-    //               const Eigen::Matrix3d& JRbg,
-    //               const Eigen::Matrix3d& JVba,
-    //               const Eigen::Matrix3d& JVbg,
-    //               const Eigen::Matrix3d& JPba,
-    //               const Eigen::Matrix3d& JPbg,
-    //               const Eigen::DiagonalMatrix<double, 6>& noiseGyrAcc,
-    //               const Eigen::DiagonalMatrix<double, 6>& noiseGyrAccWalk);
+    Preintegrator(){}
 
     Preintegrator(const Eigen::DiagonalMatrix<double, 6>& noiseGyrAcc,
                   const Eigen::DiagonalMatrix<double, 6>& noiseGyrAccWalk,
                   const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias);
 
+    Preintegrator(double gyrNoise, double accNoise, double gyrBiasWalk, double accBiasWalk,
+                  const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias);
+
     void Integrate(const IMU& imu);
     void ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias);
     void UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
-                        Eigen::Vector3d& updateDeltaP, Eigen::Vector3d& updateDeltaV,
-                        Eigen::Matrix3d& updateDeltaR);
+                        Eigen::Vector3d& updatedDeltaP, Eigen::Vector3d& updatedDeltaV,
+                        Eigen::Matrix3d& updatedDeltaR);
+    
+    Eigen::Matrix3d GetDeltaR() const;
+    Eigen::Vector3d GetDeltaV() const;
+    Eigen::Vector3d GetDeltaP() const;
+
+    Eigen::Matrix3d GetJRbg() const;
+    Eigen::Matrix3d GetJVba() const;
+    Eigen::Matrix3d GetJVbg() const;
+    Eigen::Matrix3d GetJPba() const;
+    Eigen::Matrix3d GetJPbg() const;
+    Eigen::Matrix<double, 15, 15> GetCov() const;
+    double GetDeltaT() const;
+    Eigen::Vector3d GetGyrBias() const;
+    Eigen::Vector3d GetAccBias() const;
 
 private:
     void IntegrateR(const Eigen::Vector3d& gyr, double dt);
@@ -72,8 +83,8 @@ private:
     Eigen::Matrix3d mJPba;
     Eigen::Matrix3d mJPbg;
 
-    Eigen::DiagonalMatrix<double, 6> mNoiseGyrAcc;
-    Eigen::DiagonalMatrix<double, 6> mNoiseGyrAccWalk;
+    Eigen::DiagonalMatrix<double, 6> mGyrAccNoise;
+    Eigen::DiagonalMatrix<double, 6> mGyrAccBiasWalk;
 
     Eigen::Vector3d mGyrBias;
     Eigen::Vector3d mAccBias;
@@ -82,6 +93,7 @@ private:
     Eigen::Vector3d mDeltaAccBias;
 
     std::vector<IMU> mvIMUMeas;
+    double mdT;
 };
 
 Eigen::Matrix3d NormalizeRotation(const Eigen::Matrix3d& R);
