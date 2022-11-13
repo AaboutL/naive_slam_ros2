@@ -17,7 +17,7 @@ mTbc(Tbc), mTcb(Tbc.inverse()){
 bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Eigen::Vector3d>& vPts3D, 
         std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
         std::vector<unsigned long>& vChainIds){
-
+    std::cout << "[Initializer::VisualOnlyInitS1] Start" << std::endl;
     auto frameNum = vpFrames.size();
     int matchNum = mpFM->GetMatches(0, frameNum-1, vPts2D1, vPts2D2, vChainIds);
 
@@ -32,8 +32,10 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Ei
         cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
     }
     std::sort(parallaxs.begin(), parallaxs.end());
-    if(matchNum < 20 || parallaxs[matchNum / 2] < 18)
+    if(matchNum < 20 || parallaxs[matchNum / 2] < 18){
+        std::cout << "[Initializer::VisualOnlyInitS1] Done failed. Match num or parallax is not satisfied" << std::endl;
         return false;
+    }
 
     cv::Mat mask, cvR21, cvt21, K;
     TypeConverter::MatEigentoCv(mK, K);
@@ -45,16 +47,22 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Ei
     TypeConverter::VecCVtoEigen(cvt21, t21);
     vpFrames.back()->SetTcw(R21, t21);
 
+    std::cout << "front mRcw: " << vpFrames.front()->mRcw<< std::endl;
+    std::cout << "mtcw: " << vpFrames.front()->mtcw << std::endl;
+    std::cout << "back mRcw: " << vpFrames.back()->mRcw<< std::endl;
+    std::cout << "mtcw: " << vpFrames.back()->mtcw << std::endl;
     vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
         vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
 
     mInitIdx = frameNum - 1;
 
     Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames.back(), mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
+    std::cout << "[Initializer::VisualOnlyInitS1] Done succeed" << std::endl;
     return true;
 }
     
 bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
+    std::cout << "[Initializer::VisualOnlyInitS2] Start" << std::endl;
     // first deal with frames between 0 and mInitIdx
     for(int i = 1; i < mInitIdx; i++){
 
@@ -100,6 +108,7 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
     }
 
     int goodChainNum = Optimizer::VisualOnlyBA(vpFrames, mpFM, mK);
+    std::cout << "[Initializer::VisualOnlyInitS2] Done succeed" << std::endl;
     return true;
 }
 
@@ -108,6 +117,7 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
         const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
         const std::vector<unsigned long>& vChainIds){
 
+    std::cout << "[Initializer::TriangulateTwoFrame] Start" << std::endl;
     std::vector<Eigen::Vector3d> vPts3D(vPts2D1.size(), Eigen::Vector3d(0, 0, 0));
     Eigen::Matrix<double, 3, 4> P1, P2;
     P1.block<3, 3>(0, 0) = Rcw1;
@@ -124,6 +134,7 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
     for(int j = 0; j < vPts2D1.size(); j++){
         Eigen::Vector2d pt1 = vPts2D1[j], pt2 = vPts2D2[j];
         Eigen::Vector3d pt3DW = GeometryFunc::Triangulate(pt1, pt2, P1, P2);
+        std::cout << "pt3DW=" << pt3DW << std::endl;
 
         auto pt3DC1 = Rcw1 * pt3DW + tcw1;
         if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0){
@@ -157,10 +168,12 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
         mpFM->SetWorldPos(vChainIds[j], pt3DW);
     }
 
+    std::cout << "[Initializer::TriangulateTwoFrame] Done" << std::endl;
     return vPts3D;
 }
 
 bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
+    std::cout << "[Initializer::VisualInertialInit] Start" << std::endl;
     // manage initial value
     Eigen::Matrix3d Rwg;
     Eigen::Vector3d dirG(0, 0, 0);
@@ -185,6 +198,7 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     double scale = 1.0;
 
     Optimizer::VIInitOptimize(vpFrames, Rwg, scale, 1e2, 1e10);
+    std::cout << "[Initializer::VisualInertialInit] Done" << std::endl;
 }
 
 } // namespace Naive_SLAM_ROS

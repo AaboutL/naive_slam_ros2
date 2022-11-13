@@ -38,7 +38,7 @@ mGyrBias(gyrBias), mAccBias(accBias){
 Preintegrator::Preintegrator(double gyrNoise, double accNoise, double gyrBiasWalk, double accBiasWalk,
                              const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias):
 mGyrBias(gyrBias), mAccBias(accBias){
-
+    std::cout << "[Preintegrator::Preintegrator] Start" << std::endl;
     mDeltaR.setIdentity();
     mDeltaV.setZero();
     mDeltaP.setZero();
@@ -58,9 +58,11 @@ mGyrBias(gyrBias), mAccBias(accBias){
     mDeltaAccBias.setZero();
     mvIMUMeas.clear();
     mdT = 0;
+    std::cout << "[Preintegrator::Preintegrator] Done" << std::endl;
 }
     
 void Preintegrator::Integrate(const IMU& imu){
+    std::cout << "[Preintegrator::Integrate] Start" << std::endl;
     mvIMUMeas.emplace_back(imu);
     double dt = imu.mdt;
     mdT += dt;
@@ -68,9 +70,11 @@ void Preintegrator::Integrate(const IMU& imu){
     Eigen::Vector3d gyr, acc;
     gyr = imu.mGyr - mGyrBias;
     acc = imu.mAcc - mAccBias;
-    Eigen::Matrix3d acc_hat = LieAlg::hat(acc);
+    // Eigen::Matrix3d acc_hat = LieAlg::hat(acc);
+    Eigen::Matrix3d acc_hat = Sophus::SO3d::hat(acc);
 
-    Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    // Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
     Eigen::Matrix3d rightJ = RightJacobian(gyr);
 
     Eigen::Matrix<double, 9, 9> A;
@@ -96,24 +100,32 @@ void Preintegrator::Integrate(const IMU& imu){
     IntegrateV(acc, dt);
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
-
+    std::cout << "[Preintegrator::Integrate] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
-    Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    std::cout << "[Preintegrator::IntegrateR] Start" << std::endl;
+    // Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
+    std::cout << "[Preintegrator::IntegrateR] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateV(const Eigen::Vector3d& acc, double dt){
+    std::cout << "[Preintegrator::IntegrateV] Start" << std::endl;
     mDeltaV += mDeltaR * acc * dt;
+    std::cout << "[Preintegrator::IntegrateV] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateP(const Eigen::Vector3d& acc, double dt){
+    std::cout << "[Preintegrator::IntegrateP] Start" << std::endl;
     mDeltaP += mDeltaV * dt + 0.5 * mDeltaR * acc * dt * dt;
+    std::cout << "[Preintegrator::IntegrateP] Done" << std::endl;
 }
 
 void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias){
+    std::cout << "[Preintegrator::ReIntegrate] Start" << std::endl;
     mDeltaR.setIdentity();
     mDeltaV.setZero();
     mDeltaP.setZero();
@@ -134,28 +146,38 @@ void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vec
     for(const auto& imu : imus){
         Integrate(imu);
     }
+    std::cout << "[Preintegrator::ReIntegrate] Done" << std::endl;
 }
 
 void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
                         Eigen::Vector3d& updatedDeltaP, Eigen::Vector3d& updatedDeltaV,
                         Eigen::Matrix3d& updatedDeltaR){
+    std::cout << "[Preintegrator::UpdateDeltaPVR] Start" << std::endl;
     Eigen::Vector3d deltaGyrBias = gyrBias - mGyrBias;
     Eigen::Vector3d deltaAccBias = accBias - mAccBias;
     updatedDeltaP = UpdateDeltaP(deltaGyrBias, deltaAccBias);
     updatedDeltaV = UpdateDeltaV(deltaGyrBias, deltaAccBias);
     updatedDeltaR = UpdateDeltaR(deltaGyrBias);
+    std::cout << "[Preintegrator::UpdateDeltaPVR] Done" << std::endl;
 }
 
 Eigen::Matrix3d Preintegrator::UpdateDeltaR(const Eigen::Vector3d& deltaGyrBias){
-    return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
+    std::cout << "[Preintegrator::UpdateDeltaR] Start" << std::endl;
+    // return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
+    return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
+    std::cout << "[Preintegrator::UpdateDeltaR] Done" << std::endl;
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaV(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
+    std::cout << "[Preintegrator::UpdateDeltaV] Start" << std::endl;
     return mDeltaV + mJVbg * deltaGyrBias + mJVba * deltaAccBias;
+    std::cout << "[Preintegrator::UpdateDeltaV] Done" << std::endl;
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaP(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
+    std::cout << "[Preintegrator::UpdateDeltaP] Start" << std::endl;
     return mDeltaP + mJPbg * deltaGyrBias + mJPba * deltaAccBias;
+    std::cout << "[Preintegrator::UpdateDeltaP] Done" << std::endl;
 }
 
 Eigen::Matrix3d Preintegrator::GetDeltaR() const{
@@ -190,9 +212,16 @@ Eigen::Matrix<double, 15, 15> Preintegrator::GetCov() const{
     return mCov;
 }
 
-
 double Preintegrator::GetDeltaT() const{
     return mdT;
+}
+
+Eigen::Vector3d Preintegrator::GetGyrBias() const{
+    return mGyrBias;
+}
+
+Eigen::Vector3d Preintegrator::GetAccBias() const{
+    return mAccBias;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,7 +235,8 @@ Eigen::Matrix3d RightJacobian(const Eigen::Vector3d& v){
     Eigen::Matrix3d R;
     double n2 = v.dot(v);
     double n = sqrt(n2);
-    Eigen::Matrix3d v_hat = LieAlg::hat(v);
+    // Eigen::Matrix3d v_hat = LieAlg::hat(v);
+    Eigen::Matrix3d v_hat = Sophus::SO3d::hat(v);
     if(n < 1e-4){
         R = Eigen::Matrix3d::Identity();
     }
@@ -220,7 +250,8 @@ Eigen::Matrix3d InverseRightJacobian(const Eigen::Vector3d& v){
     Eigen::Matrix3d R;
     double n2 = v.dot(v);
     double n = sqrt(n2);
-    Eigen::Matrix3d v_hat = LieAlg::hat(v);
+    // Eigen::Matrix3d v_hat = LieAlg::hat(v);
+    Eigen::Matrix3d v_hat = Sophus::SO3d::hat(v);
     if(n < 1e-4){
         R = Eigen::Matrix3d::Identity();
     }

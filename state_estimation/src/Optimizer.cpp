@@ -141,6 +141,8 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
     std::vector<std::pair<int, unsigned long>> vVid2Cid;
     std::vector<std::pair<int, int>> vVid2Pid;
     for(int i = 0; i < vPts3D.size(); i++){
+        std::cout << "vPts3D[i][2] = " << vPts3D[i][2] << std::endl;
+        std::cout << "chain pos set: " << pFM->IsChainPosSet(vChainIds[i]) << std::endl;
         if(abs(vPts3D[i][2]) > EPSILON && pFM->IsChainPosSet(vChainIds[i])){
             vVid2Cid.emplace_back(std::make_pair(vertexIdx, vChainIds[i]));
             vVid2Pid.emplace_back(std::make_pair(vertexIdx, i));
@@ -189,7 +191,7 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
             sum_diff2 += diff.dot(diff);
         }
     }
-    std::cout << "points square error before optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
+    std::cout << "[Optimizer::VisualOnlyInitBA] points square error before optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
     optimizer.initializeOptimization();
     optimizer.setVerbose(true);
     optimizer.optimize(10);
@@ -204,7 +206,7 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
         diff = GeometryFunc::project(vSE32->estimate().map(vPoint->estimate()), K) - vPts2D2[p.second];
         sum_diff2 += diff.dot(diff);
     }
-    std::cout << "points square error after optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
+    std::cout << "[Optimizer::VisualOnlyInitBA] points square error after optimization: " << sum_diff2 / vVid2Cid.size() << std::endl;
 
     frame1->SetTcw(vSE31->estimate().to_homogeneous_matrix());
     frame2->SetTcw(vSE32->estimate().to_homogeneous_matrix());
@@ -342,7 +344,7 @@ int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, 
     return goodChainNum;
 }
 
-int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
+int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
             std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -428,6 +430,7 @@ int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, do
     optimizer.initializeOptimization();
     optimizer.optimize(200);
 
+    return 1;
 }
     
 } // namespace Naive_SLAM_ROS

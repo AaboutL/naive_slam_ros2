@@ -56,7 +56,7 @@ class EdgePriorAccBias : public g2o::BaseUnaryEdge<3, Eigen::Vector3d, VertexAcc
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    EdgePriorAccBias(const Eigen::Vector3f &bprior_) : bprior(bprior_.cast<double>()) {}
+    EdgePriorAccBias(const Eigen::Vector3d &bprior_) : bprior(bprior_) {}
 
     virtual bool read(std::istream &is) { return false; }
     virtual bool write(std::ostream &os) const { return false; }
@@ -87,7 +87,7 @@ class EdgePriorGyrBias : public g2o::BaseUnaryEdge<3, Eigen::Vector3d, VertexGyr
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    EdgePriorGyrBias(const Eigen::Vector3f &bprior_) : bprior(bprior_.cast<double>()) {}
+    EdgePriorGyrBias(const Eigen::Vector3d &bprior_) : bprior(bprior_.cast<double>()) {}
 
     virtual bool read(std::istream &is) { return false; }
     virtual bool write(std::ostream &os) const { return false; }

@@ -38,14 +38,6 @@ public:
         v << vec.at<double>(0), vec.at<double>(1), vec.at<double>(2);
     }
 
-    // static Eigen::Matrix3d MatCVtoEigen(const cv::Mat& mat){
-    //     Eigen::Matrix3d m;
-    //     m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2),
-    //          mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2),
-    //          mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2);
-    //     return m;
-    // }
-
     static void MatCVtoEigen(const cv::Mat& mat, Eigen::Matrix3d& m){
         m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2),
              mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2),
@@ -53,10 +45,10 @@ public:
     }
 
     static void MatCVtoEigen(const cv::Mat& mat, Eigen::Matrix4d& m){
-        m << mat.at<double>(0, 0) , mat.at<double>(0, 1), mat.at<double>(0, 2), mat.at<double>(0, 3),
-             mat.at<double>(1, 0) , mat.at<double>(1, 1), mat.at<double>(1, 2), mat.at<double>(1, 3),
-             mat.at<double>(2, 0) , mat.at<double>(2, 1), mat.at<double>(2, 2); mat.at<double>(2, 3),
-             mat.at<double>(3, 0) , mat.at<double>(3, 1), mat.at<double>(3, 2); mat.at<double>(3, 3);
+        m << mat.at<double>(0, 0), mat.at<double>(0, 1), mat.at<double>(0, 2), mat.at<double>(0, 3),
+             mat.at<double>(1, 0), mat.at<double>(1, 1), mat.at<double>(1, 2), mat.at<double>(1, 3),
+             mat.at<double>(2, 0), mat.at<double>(2, 1), mat.at<double>(2, 2), mat.at<double>(2, 3),
+             mat.at<double>(3, 0), mat.at<double>(3, 1), mat.at<double>(3, 2), mat.at<double>(3, 3);
     }
 
     static void MatEigentoCv(const Eigen::Matrix3d& m, cv::Mat& mat){

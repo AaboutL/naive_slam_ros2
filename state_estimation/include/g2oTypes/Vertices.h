@@ -43,8 +43,8 @@ public:
         setEstimate(ImuCamPose(Tcb, Tcw));
     }
 
-    virtual bool read(std::istream& is);
-    virtual bool write(std::ostream& os) const;
+    virtual bool read(std::istream& is){return false;}
+    virtual bool write(std::ostream& os) const{return false;}
     virtual void setToOriginImpl(){}
     virtual void oplusImpl(const double* delta){
         _estimate.Update(delta);

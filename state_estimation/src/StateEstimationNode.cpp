@@ -104,7 +104,7 @@ void StateEstimationNode::Run(){
         for(auto & meas : vMeasurements){
             std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
             mpEstimator->Estimate(meas);
-            std::cout << "estimate() done" << std::endl;
+            std::cout << "*****************************[StateEstimationNode::Run] mpEstimator->Estimate() done***************************************" << std::endl;
         }
     }
 }

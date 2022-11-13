@@ -55,7 +55,8 @@ public:
                         FeatureManager* pFM, 
                         const Eigen::Matrix3d& K);
     
-    static int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr);
+    static int VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, 
+                              double scale, double priorAcc, double priorGyr);
 };
     
 } // namespace Naive_SLAM_ROS
