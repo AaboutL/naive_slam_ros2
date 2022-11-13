@@ -141,8 +141,6 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
     std::vector<std::pair<int, unsigned long>> vVid2Cid;
     std::vector<std::pair<int, int>> vVid2Pid;
     for(int i = 0; i < vPts3D.size(); i++){
-        std::cout << "vPts3D[i][2] = " << vPts3D[i][2] << std::endl;
-        std::cout << "chain pos set: " << pFM->IsChainPosSet(vChainIds[i]) << std::endl;
         if(abs(vPts3D[i][2]) > EPSILON && pFM->IsChainPosSet(vChainIds[i])){
             vVid2Cid.emplace_back(std::make_pair(vertexIdx, vChainIds[i]));
             vVid2Pid.emplace_back(std::make_pair(vertexIdx, i));
@@ -345,6 +343,7 @@ int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, 
 }
 
 int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
+    std::cout << "[Optimizer::VIInitOptimize] Start" << std::endl;
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
             std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -367,14 +366,13 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
         vVel->setFixed(false);
         optimizer.addVertex(vVel);
     }
-
     // bias
-    VertexGyrBias* vGB = new VertexGyrBias(vpFrames.front()->GetGyrBias());
+    VertexGyrBias* vGB = new VertexGyrBias(vpFrames.back()->GetGyrBias());
     vGB->setId(usedFrameNum * 2);
     vGB->setFixed(false);
     optimizer.addVertex(vGB);
 
-    VertexAccBias* vAB = new VertexAccBias(vpFrames.front()->GetAccBias());
+    VertexAccBias* vAB = new VertexAccBias(vpFrames.back()->GetAccBias());
     vAB->setId(usedFrameNum * 2 + 1);
     vAB->setFixed(false);
     optimizer.addVertex(vAB);
@@ -430,6 +428,7 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
     optimizer.initializeOptimization();
     optimizer.optimize(200);
 
+    std::cout << "[Optimizer::VIInitOptimize] Done" << std::endl;
     return 1;
 }
     

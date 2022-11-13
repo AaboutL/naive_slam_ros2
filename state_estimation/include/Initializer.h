@@ -12,6 +12,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <sophus/se3.hpp>
+#include <opencv2/core/eigen.hpp>
 
 #include "FeatureManager.h"
 #include "Frame.h"

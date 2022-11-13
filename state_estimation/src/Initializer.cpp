@@ -38,19 +38,15 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Ei
     }
 
     cv::Mat mask, cvR21, cvt21, K;
-    TypeConverter::MatEigentoCv(mK, K);
+    cv::eigen2cv(mK, K);
     cv::Mat EMat = cv::findEssentialMat(cvPts2D1, cvPts2D2, K, cv::RANSAC, 0.999, 3.84, mask);
     int inlier_cnt = cv::recoverPose(EMat, cvPts2D1, cvPts2D2, K, cvR21, cvt21, mask);
     Eigen::Matrix3d R21;
     Eigen::Vector3d t21;
-    TypeConverter::MatCVtoEigen(cvR21, R21);
-    TypeConverter::VecCVtoEigen(cvt21, t21);
+    cv::cv2eigen(cvR21, R21);
+    cv::cv2eigen(cvt21, t21);
     vpFrames.back()->SetTcw(R21, t21);
 
-    std::cout << "front mRcw: " << vpFrames.front()->mRcw<< std::endl;
-    std::cout << "mtcw: " << vpFrames.front()->mtcw << std::endl;
-    std::cout << "back mRcw: " << vpFrames.back()->mRcw<< std::endl;
-    std::cout << "mtcw: " << vpFrames.back()->mtcw << std::endl;
     vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
         vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
 
@@ -134,7 +130,6 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
     for(int j = 0; j < vPts2D1.size(); j++){
         Eigen::Vector2d pt1 = vPts2D1[j], pt2 = vPts2D2[j];
         Eigen::Vector3d pt3DW = GeometryFunc::Triangulate(pt1, pt2, P1, P2);
-        std::cout << "pt3DW=" << pt3DW << std::endl;
 
         auto pt3DC1 = Rcw1 * pt3DW + tcw1;
         if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0){

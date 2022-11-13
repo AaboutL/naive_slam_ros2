@@ -29,7 +29,7 @@ mFrameId(0), mState(INITS1){
     mAccBiasWalk = fs["IMU.AccBiasWalk"];
     cv::Mat cvTbc = fs["IMU.Tbc"].mat();
     Eigen::Matrix4d eTbc;
-    TypeConverter::MatCVtoEigen(cvTbc, eTbc);
+    cv::cv2eigen(cvTbc, eTbc);
     mTbc = Sophus::SE3(eTbc);
 
     mpInitializer = new Initializer(20, 18, mK, mpFM, mTbc);
@@ -46,13 +46,15 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
     mvpFrames.emplace_back(pframe);
 
     mFrameId++;
+
+    Preintegrate(pframe, imus);
     if(mvpFrames.size() == 1){// first frame
         mpLastFrame = pframe;
         mvLastIMUs = imus;
         return;
     } 
     else{
-        Preintegrate(pframe, imus);
+        // Preintegrate(pframe, imus);
 
         if(mState == INITS1 || mState == INITS2){
             int flag = VisualOnlyInit();
@@ -112,6 +114,8 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     for(int i = 0; i < vIMUs.size(); i++){
         auto imu = vIMUs[i];
         if(i == 0){
+            if(mvLastIMUs.empty())
+                continue;
             auto lastImu = *(mvLastIMUs.end() - 2);
             double dt = imu.mdTimestamp - lastImu.mdTimestamp;
             double dtPre = mpLastFrame->mdTimestamp - lastImu.mdTimestamp;

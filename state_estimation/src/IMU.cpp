@@ -70,10 +70,8 @@ void Preintegrator::Integrate(const IMU& imu){
     Eigen::Vector3d gyr, acc;
     gyr = imu.mGyr - mGyrBias;
     acc = imu.mAcc - mAccBias;
-    // Eigen::Matrix3d acc_hat = LieAlg::hat(acc);
     Eigen::Matrix3d acc_hat = Sophus::SO3d::hat(acc);
 
-    // Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
     Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
     Eigen::Matrix3d rightJ = RightJacobian(gyr);
 
@@ -104,24 +102,17 @@ void Preintegrator::Integrate(const IMU& imu){
 }
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
-    std::cout << "[Preintegrator::IntegrateR] Start" << std::endl;
-    // Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
     Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
-    std::cout << "[Preintegrator::IntegrateR] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateV(const Eigen::Vector3d& acc, double dt){
-    std::cout << "[Preintegrator::IntegrateV] Start" << std::endl;
     mDeltaV += mDeltaR * acc * dt;
-    std::cout << "[Preintegrator::IntegrateV] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateP(const Eigen::Vector3d& acc, double dt){
-    std::cout << "[Preintegrator::IntegrateP] Start" << std::endl;
     mDeltaP += mDeltaV * dt + 0.5 * mDeltaR * acc * dt * dt;
-    std::cout << "[Preintegrator::IntegrateP] Done" << std::endl;
 }
 
 void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias){
@@ -152,32 +143,23 @@ void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vec
 void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
                         Eigen::Vector3d& updatedDeltaP, Eigen::Vector3d& updatedDeltaV,
                         Eigen::Matrix3d& updatedDeltaR){
-    std::cout << "[Preintegrator::UpdateDeltaPVR] Start" << std::endl;
     Eigen::Vector3d deltaGyrBias = gyrBias - mGyrBias;
     Eigen::Vector3d deltaAccBias = accBias - mAccBias;
     updatedDeltaP = UpdateDeltaP(deltaGyrBias, deltaAccBias);
     updatedDeltaV = UpdateDeltaV(deltaGyrBias, deltaAccBias);
     updatedDeltaR = UpdateDeltaR(deltaGyrBias);
-    std::cout << "[Preintegrator::UpdateDeltaPVR] Done" << std::endl;
 }
 
 Eigen::Matrix3d Preintegrator::UpdateDeltaR(const Eigen::Vector3d& deltaGyrBias){
-    std::cout << "[Preintegrator::UpdateDeltaR] Start" << std::endl;
-    // return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
     return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
-    std::cout << "[Preintegrator::UpdateDeltaR] Done" << std::endl;
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaV(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
-    std::cout << "[Preintegrator::UpdateDeltaV] Start" << std::endl;
     return mDeltaV + mJVbg * deltaGyrBias + mJVba * deltaAccBias;
-    std::cout << "[Preintegrator::UpdateDeltaV] Done" << std::endl;
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaP(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
-    std::cout << "[Preintegrator::UpdateDeltaP] Start" << std::endl;
     return mDeltaP + mJPbg * deltaGyrBias + mJPba * deltaAccBias;
-    std::cout << "[Preintegrator::UpdateDeltaP] Done" << std::endl;
 }
 
 Eigen::Matrix3d Preintegrator::GetDeltaR() const{
