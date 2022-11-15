@@ -46,8 +46,11 @@ Eigen::Vector2d FeatureChain::GetOffset() const{
 
 void FeatureChain::EraseFront() {
     if(mStartIdx == 0){
-        auto first = mvFeatures.begin();
-        mvFeatures.erase(first);
+        if(mvFeatures.size() > 1)
+            mvFeatures.erase(mvFeatures.begin());
+        else{
+            mvFeatures.clear();
+        }
     }
     else{
         mStartIdx--;
@@ -106,10 +109,15 @@ const std::unordered_map<unsigned long, FeatureChain>& FeatureManager::GetChains
 }
 
 void FeatureManager::EraseFront() {
-    for(auto& [chainId, chain] : mmChains){
-        chain.EraseFront();
-        if(chain.GetChainLen() == 0)
-            mmChains.erase(chainId);
+    auto iter = mmChains.begin();
+    while(iter != mmChains.end()){
+        iter->second.EraseFront();
+        if(iter->second.GetChainLen() == 0){
+            mmChains.erase(iter++);
+        }
+        else{
+            iter++;
+        }
     }
 }
 

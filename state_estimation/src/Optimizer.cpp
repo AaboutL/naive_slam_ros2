@@ -345,11 +345,12 @@ int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, 
 int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
     std::cout << "[Optimizer::VIInitOptimize] Start" << std::endl;
     g2o::SparseOptimizer optimizer;
-    std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver =
-            std::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
-    std::unique_ptr<g2o::BlockSolver_6_3> solver_ptr =
-            std::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver));
+    std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linearSolver =
+            std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
+    std::unique_ptr<g2o::BlockSolverX> solver_ptr =
+            std::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
     auto *solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+    solver->setUserLambdaInit(1e3);
     optimizer.setAlgorithm(solver);
 
     int usedFrameNum = vpFrames.size() - 1;
@@ -396,7 +397,7 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
     optimizer.addEdge(ePAB);
 
     EdgePriorGyrBias* ePGB = new EdgePriorGyrBias(Eigen::Vector3d(0, 0, 0));
-    ePGB->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vAB));
+    ePGB->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(vGB));
     ePGB->setInformation(Eigen::Matrix3d::Identity() * priorGyr);
     optimizer.addEdge(ePGB);
 
@@ -424,9 +425,14 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
         optimizer.addEdge(eInertialGS);
     }
 
+    bool flagPSD = optimizer.verifyInformationMatrices(true);
     optimizer.setVerbose(true);
     optimizer.initializeOptimization();
     optimizer.optimize(200);
+
+    std::cout << "opted gyr bias: " << vGB->estimate() << std::endl;
+    std::cout << "opted acc bias: " << vAB->estimate() << std::endl;
+    std::cout << "opted scale: " << vS->estimate() << std::endl;
 
     std::cout << "[Optimizer::VIInitOptimize] Done" << std::endl;
     return 1;

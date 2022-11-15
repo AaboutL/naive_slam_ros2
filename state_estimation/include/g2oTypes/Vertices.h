@@ -15,6 +15,8 @@
 #include <sophus/se3.hpp>
 #include <g2o/core/base_vertex.h>
 
+#include "LieAlgebra.h"
+
 namespace Naive_SLAM_ROS
 {
 
@@ -136,7 +138,7 @@ public:
 
     void Update(const double *pu)
     {
-        mRwg = mRwg * Sophus::SO3d::exp(Eigen::Vector3d(pu[0], pu[1], 0.0)).matrix();
+        mRwg = mRwg * LieAlg::Exp(Eigen::Vector3d(pu[0], pu[1], 0.0));
     }
 
     Eigen::Matrix3d mRwg, mRgw;

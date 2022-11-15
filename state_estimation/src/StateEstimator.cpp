@@ -7,7 +7,7 @@
 namespace Naive_SLAM_ROS{
 
 StateEstimator::StateEstimator(const std::string& strParamFile):
-mFrameId(0), mState(INITS1){
+mFrameId(0), mState(INIT){
     cv::FileStorage fs(strParamFile.c_str(), cv::FileStorage::READ);
     if (!fs.isOpened()) {
         std::cout << "[Estimator] Param file not exist..." << std::endl;
@@ -54,56 +54,34 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
         return;
     } 
     else{
-        // Preintegrate(pframe, imus);
-
-        if(mState == INITS1 || mState == INITS2){
+        if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
             int flag = VisualOnlyInit();
-            if(flag == 1){
-                mState = INITS2;
-            }
-            if(flag == 2){
-                mState = VIINIT;
-            }
+            if(flag)
+                mpInitializer->VisualInertialInit(mvpFrames);
         }
-        if(mState == VIINIT){
-            mpInitializer->VisualInertialInit(mvpFrames);
+        if(mState == ESTIMATE){
+            // TODO
         }
         mpLastFrame = pframe;
         mvLastIMUs = imus;
 
         // TODO: marginalization
+        Marginalize();
     }
 }
 
-int StateEstimator::VisualOnlyInit(){
-    if(mState == INITS1){
-        std::cout << "[StateEstimator::VisualOnlyInit] InitS1 Start" << std::endl;
-        std::vector<Eigen::Vector2d> vPtsUn1, vPtsUn2;
-        std::vector<unsigned long> vChainIds;
-        std::vector<Eigen::Vector3d> vPts3D;
-        bool bS1 = mpInitializer->VisualOnlyInitS1(mvpFrames, vPts3D, vPtsUn1, vPtsUn2, vChainIds);
-        if(!bS1){
-            std::cout << "[StateEstimator::VisualOnlyInit] InitS1 Done failed" << std::endl;
-            return -1;
-        }
-        // Optimizer::VisualOnlyInitBA(mvpFrames.front(), mvpFrames.back(), mpFM, vPts3D, vPtsUn1, vPtsUn2, vChainIds, mK);
-        std::cout << "[StateEstimator::VisualOnlyInit] InitS1 Done succeed" << std::endl;
-        return 1;
+bool StateEstimator::VisualOnlyInit(){
+    // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
+    bool bS1 = mpInitializer->VisualOnlyInitS1(mvpFrames);
+    if(!bS1){
+        return false;
     }
 
-    // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
-    if(mState == INITS2 && mvpFrames.size() == mWindowSize + 1){
-        std::cout << "[StateEstimator::VisualOnlyInit] InitS2 Start" << std::endl;
-        bool bS2 = mpInitializer->VisualOnlyInitS2(mvpFrames);
-        if(!bS2){
-            std::cout << "[StateEstimator::VisualOnlyInit] InitS2 Done failed" << std::endl;
-            return -1;
-        }
-        // int goodChainNum = Optimizer::VisualOnlyBA(mvpFrames, mpFM, mK);
-        std::cout << "[StateEstimator::VisualOnlyInit] InitS2 Done succeed" << std::endl;
-        return 2;
+    bool bS2 = mpInitializer->VisualOnlyInitS2(mvpFrames);
+    if(!bS2){
+        return false;
     }
-    return 0;
+    return true;
 }
 
 void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
@@ -139,6 +117,23 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     }
     pFrame->SetPreintegrator(preintegrator);
     std::cout << "[StateEstimator::Preintegrate] Done" << std::endl;
+}
+
+void StateEstimator::Marginalize(){
+    std::cout << "mvpFrame size before marginalize = " << mvpFrames.size() << std::endl;
+    if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
+        auto* pFDel = mvpFrames.front();
+        mvpFrames.erase(mvpFrames.begin());
+        std::cout << "test1" << std::endl;
+        mpFM->EraseFront();
+        std::cout << "test2" << std::endl;
+        delete pFDel;
+        std::cout << "test3" << std::endl;
+        pFDel = nullptr;
+        std::cout << "test4" << std::endl;
+    }
+    std::cout << "mvpFrame size after marginalize = " << mvpFrames.size() << std::endl;
+
 }
 
 } // namespace Naive_SLAM_ROS

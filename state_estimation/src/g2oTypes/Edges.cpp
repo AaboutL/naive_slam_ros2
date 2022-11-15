@@ -16,11 +16,13 @@ mGI(Eigen::Vector3d(0, 0, -9.81)), mdT(pPreint->GetDeltaT()){
     info = (info + info.transpose()) * 0.5; // make symmetrical matrix. Infomation matrix is a symmetrical matrix
     Eigen::SelfAdjointEigenSolver<Matrix9d> es(info);
     Vector9d eigs = es.eigenvalues();
+    std::cout << "eigs: " << std::endl << eigs.transpose() << std::endl;
     for(int i = 0; i < 9; i++){
         if(eigs[i] < 1e-12)
             eigs[i] = 0;
     }
     info = es.eigenvectors() * eigs.asDiagonal() * es.eigenvectors().transpose();
+    std::cout << "Info after: " << std::endl << info << std::endl;
     setInformation(info);
 }
     

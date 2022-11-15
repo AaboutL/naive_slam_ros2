@@ -22,20 +22,19 @@ public:
     StateEstimator(const std::string& strParamFile);
 
     enum State{
-        INITS1 = 1,
-        INITS2 = 2,
-        VIINIT = 3,
-        ESTIMATE = 4,
-        LOST = 5
+        INIT = 1,
+        ESTIMATE = 2,
+        LOST = 3
     };
 
     void Estimate(const std::pair<PointCloud, std::vector<IMU>>& pMeas);
 
-    int VisualOnlyInit();
+    bool VisualOnlyInit();
     int SolveRelativePose(const std::vector<Eigen::Vector2d> &vPts0, const std::vector<Eigen::Vector2d> &vPts1,
                           cv::Mat &R10, cv::Mat &t10);
 
     void Preintegrate(Frame* frame, const std::vector<IMU>& vIMUs);
+    void Marginalize();
 
 private:
     int mWindowSize;

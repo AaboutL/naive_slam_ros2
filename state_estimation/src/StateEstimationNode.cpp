@@ -93,6 +93,7 @@ std::vector<std::pair<PointCloud, std::vector<IMU>>> StateEstimationNode::BindIm
 }
 
 void StateEstimationNode::Run(){
+    int i= 0;
     while(true){
         std::vector<std::pair<PointCloud, std::vector<IMU>>> vMeasurements;
         std::unique_lock<std::mutex> ulk(mMutexBuffer);
@@ -102,6 +103,8 @@ void StateEstimationNode::Run(){
         });
         ulk.unlock();
         for(auto & meas : vMeasurements){
+            i++;
+            if (i < 66) continue;
             std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
             mpEstimator->Estimate(meas);
             std::cout << "*****************************[StateEstimationNode::Run] mpEstimator->Estimate() done***************************************" << std::endl;

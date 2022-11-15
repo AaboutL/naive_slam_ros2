@@ -14,26 +14,48 @@ mTbc(Tbc), mTcb(Tbc.inverse()){
 }
 
 
-bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Eigen::Vector3d>& vPts3D, 
-        std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
-        std::vector<unsigned long>& vChainIds){
+bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     std::cout << "[Initializer::VisualOnlyInitS1] Start" << std::endl;
-    auto frameNum = vpFrames.size();
-    int matchNum = mpFM->GetMatches(0, frameNum-1, vPts2D1, vPts2D2, vChainIds);
 
-    std::vector<cv::Vec2f> cvPts2D1(matchNum), cvPts2D2(matchNum);
+    std::vector<Eigen::Vector3d> vPts3D;
+    std::vector<Eigen::Vector2d> vPts2D1, vPts2D2;
+    std::vector<unsigned long> vChainIds;
 
-    std::vector<float> parallaxs;
-    for(int i = 0; i < matchNum; i++){
-        Eigen::Vector2d chainOffset = vPts2D2[i] - vPts2D1[i];
-        float parallax = std::sqrt(chainOffset.dot(chainOffset));
-        parallaxs.push_back(parallax);
-        cvPts2D1[i] = cv::Vec2f(vPts2D1[i][0], vPts2D1[i][1]);
-        cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
+    std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
+    int matchId = 1;
+    int bGood = false;
+    for(; matchId < vpFrames.size(); matchId++){
+        vPts2D1.clear();
+        vPts2D2.clear();
+        vChainIds.clear();
+        cvPts2D1.clear();
+        cvPts2D2.clear();
+
+        int matchNum = mpFM->GetMatches(0, matchId, vPts2D1, vPts2D2, vChainIds);
+        std::cout << "[Initializer::VisualOnlyInitS1] matchNum=" << matchNum << std::endl;
+        if(matchNum < 20){
+            continue;
+        }
+
+        cvPts2D1.resize(matchNum); 
+        cvPts2D2.resize(matchNum);
+        std::vector<float> parallaxs;
+        for(int i = 0; i < matchNum; i++){
+            Eigen::Vector2d chainOffset = vPts2D2[i] - vPts2D1[i];
+            float parallax = std::sqrt(chainOffset.dot(chainOffset));
+            parallaxs.push_back(parallax);
+            cvPts2D1[i] = cv::Vec2f(vPts2D1[i][0], vPts2D1[i][1]);
+            cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
+        }
+        std::sort(parallaxs.begin(), parallaxs.end());
+        if(parallaxs[matchNum / 2] >= 18){
+            bGood = true;
+            std::cout << "[Initializer::VisualOnlyInitS1] Find good match id: " << matchId << std::endl;
+            break;
+        }
     }
-    std::sort(parallaxs.begin(), parallaxs.end());
-    if(matchNum < 20 || parallaxs[matchNum / 2] < 18){
-        std::cout << "[Initializer::VisualOnlyInitS1] Done failed. Match num or parallax is not satisfied" << std::endl;
+    if(!bGood){
+        std::cout << "[Initializer::VisualOnlyInitS1] Cannot find good match. Try to marginalize the first frame and retry" << std::endl;
         return false;
     }
 
@@ -50,7 +72,7 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames, std::vector<Ei
     vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
         vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
 
-    mInitIdx = frameNum - 1;
+    mInitIdx = matchId;
 
     Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames.back(), mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
     std::cout << "[Initializer::VisualOnlyInitS1] Done succeed" << std::endl;
@@ -75,6 +97,7 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         TriangulateTwoFrame(vpFrames[0]->mRcw, vpFrames[0]->mtcw, 
             vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
+    std::cout << "[Initializer::VisualOnlyInitS2] Triangle between 0 and mInitIdx done" << std::endl;
 
     // second deal with frames between mInitIdx and mWindowSize - 1
     for(int i = mInitIdx + 1; i < vpFrames.size(); i++){
@@ -91,6 +114,8 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
             vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
+
+    std::cout << "[Initializer::VisualOnlyInitS2] Triangle between mInitIdx and last done" << std::endl;
 
     // third: deal with all other chains from 1 to mInitIdx
     for(int i = 2; i <= mInitIdx; i++){
@@ -188,12 +213,15 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     v = v / v.norm();
     double ang = acos(gI.dot(dirG));
     Eigen::Vector3d vzg = ang * v;
-    Rwg = Sophus::SO3d::exp(vzg).matrix();
+    // Rwg = Sophus::SO3d::exp(vzg).matrix();
+    Rwg = LieAlg::Exp(vzg);
 
     double scale = 1.0;
 
-    Optimizer::VIInitOptimize(vpFrames, Rwg, scale, 1e2, 1e10);
+    Optimizer::VIInitOptimize(vpFrames, Rwg, scale, 1e10, 1e2);
     std::cout << "[Initializer::VisualInertialInit] Done" << std::endl;
+    exit(0);
+    return true;
 }
 
 } // namespace Naive_SLAM_ROS

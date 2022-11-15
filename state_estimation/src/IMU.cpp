@@ -72,16 +72,19 @@ void Preintegrator::Integrate(const IMU& imu){
     acc = imu.mAcc - mAccBias;
     Eigen::Matrix3d acc_hat = Sophus::SO3d::hat(acc);
 
-    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
-    Eigen::Matrix3d rightJ = RightJacobian(gyr);
+    // Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
+    Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    Eigen::Matrix3d rightJ = RightJacobian(gyr * dt);
 
     Eigen::Matrix<double, 9, 9> A;
+    A.setIdentity();
     Eigen::Matrix<double, 9, 6> B;
+    B.setZero();
 
     A.block<3, 3>(0, 0) = deltaR.transpose();
     A.block<3, 3>(3, 0) = -mDeltaR * acc_hat * dt;
     A.block<3, 3>(6, 0) = -0.5 * mDeltaR * acc_hat * dt * dt;
-    A.block<3, 3>(6, 3) *= dt;
+    A.block<3, 3>(6, 3) = Eigen::DiagonalMatrix<double, 3>(dt, dt, dt);
     B.block<3, 3>(0, 0) = rightJ * dt;
     B.block<3, 3>(3, 3) = mDeltaR * dt;
     B.block<3, 3>(6, 3) = 0.5 * mDeltaR * dt * dt;
@@ -102,7 +105,8 @@ void Preintegrator::Integrate(const IMU& imu){
 }
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
-    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
+    // Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
+    Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
 }
@@ -151,7 +155,8 @@ void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::
 }
 
 Eigen::Matrix3d Preintegrator::UpdateDeltaR(const Eigen::Vector3d& deltaGyrBias){
-    return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
+    // return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
+    return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaV(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
@@ -219,7 +224,7 @@ Eigen::Matrix3d RightJacobian(const Eigen::Vector3d& v){
     double n = sqrt(n2);
     // Eigen::Matrix3d v_hat = LieAlg::hat(v);
     Eigen::Matrix3d v_hat = Sophus::SO3d::hat(v);
-    if(n < 1e-4){
+    if(n < 1e-5){
         R = Eigen::Matrix3d::Identity();
     }
     else{
@@ -234,7 +239,7 @@ Eigen::Matrix3d InverseRightJacobian(const Eigen::Vector3d& v){
     double n = sqrt(n2);
     // Eigen::Matrix3d v_hat = LieAlg::hat(v);
     Eigen::Matrix3d v_hat = Sophus::SO3d::hat(v);
-    if(n < 1e-4){
+    if(n < 1e-5){
         R = Eigen::Matrix3d::Identity();
     }
     else{

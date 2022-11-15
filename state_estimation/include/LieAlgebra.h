@@ -14,32 +14,32 @@
 
 namespace Naive_SLAM_ROS{
 
-namespace LieAlg{
-
-Eigen::Matrix3d hat(const Eigen::Vector3d& v){
-    Eigen::Matrix3d v_hat;
-    v_hat << 0, -v[2], v[1],
-             v[2], 0, -v[0],
-             -v[1], v[0], 0;
-    return v_hat;
-}
-
-Eigen::Matrix3d Exp(const Eigen::Vector3d& v){
-    Eigen::Matrix3d R;
-    double n2 = v.dot(v);
-    double n = sqrt(n2);
-    Eigen::Matrix3d v_hat = hat(v);
-    if(n < 1e-4){
-        R = Eigen::Matrix3d::Identity() + v_hat;
+class LieAlg{
+public:
+    static Eigen::Matrix3d hat(const Eigen::Vector3d& v){
+        Eigen::Matrix3d v_hat;
+        v_hat << 0, -v[2], v[1],
+                v[2], 0, -v[0],
+                -v[1], v[0], 0;
+        return v_hat;
     }
-    else{
-        R = Eigen::Matrix3d::Identity() + std::sin(n) * v_hat / n + (1 - cos(n)) * v_hat * v_hat / n2;
+
+    static Eigen::Matrix3d Exp(const Eigen::Vector3d& v){
+        Eigen::Matrix3d R;
+        double n2 = v.dot(v);
+        double n = sqrt(n2);
+        Eigen::Matrix3d v_hat = hat(v);
+        if(n < 1e-4){
+            R = Eigen::Matrix3d::Identity() + v_hat;
+        }
+        else{
+            R = Eigen::Matrix3d::Identity() + std::sin(n) * v_hat / n + (1 - cos(n)) * v_hat * v_hat / n2;
+        }
+        return R;
     }
-    return R;
-}
 
 
-} // namespace LieAlg{
+};
 
 } // namespace Naive_SLAM_ROS
 

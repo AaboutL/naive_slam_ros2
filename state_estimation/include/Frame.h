@@ -38,6 +38,7 @@ public:
     Frame(const Frame& frame);
     Frame(const Frame* pF);
     Frame(const PointCloud& pc, const Sophus::SE3d& Tbc);
+    virtual ~Frame();
         
     void SetTcw(const Eigen::Matrix4d& Tcw);
     void SetTcw(const Sophus::SE3d& Tcw);

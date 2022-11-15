@@ -18,6 +18,7 @@
 #include "Frame.h"
 #include "TypeConverter.h"
 #include "Optimizer.h"
+#include "LieAlgebra.h"
 
 namespace Naive_SLAM_ROS{
 
@@ -26,9 +27,7 @@ public:
     Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM,
                 Sophus::SE3d& Tbc);
 
-    bool VisualOnlyInitS1(std::vector<Frame*>& qFrames,std::vector<Eigen::Vector3d>& vPts3D, 
-        std::vector<Eigen::Vector2d>& vPts2D1, std::vector<Eigen::Vector2d>& vPts2D2,
-        std::vector<unsigned long>& vChainIds);
+    bool VisualOnlyInitS1(std::vector<Frame*>& qFrames);
 
     bool VisualOnlyInitS2(std::vector<Frame*>& qFrames);
 

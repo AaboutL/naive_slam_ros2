@@ -45,6 +45,11 @@ mdTimestamp(pc.mdTimestamp), mvChainIds(pc.mvChainIds), mvPtsUn(pc.mvPtsUn), mvP
     mVelocity.setZero();
 }
 
+Frame::~Frame(){
+    delete mpPreintegrator;
+    mpPreintegrator = nullptr;
+}
+
 void Frame::SetTcw(const Eigen::Matrix4d& Tcw){
     mTcw = Sophus::SE3d(Tcw);
     mRcw = mTcw.rotationMatrix();

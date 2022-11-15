@@ -12,7 +12,7 @@
 
 #include <iostream>
 #include <eigen3/Eigen/Dense>
-// #include "LieAlgebra.h"
+#include "LieAlgebra.h"
 #include <sophus/se3.hpp>
 
 namespace Naive_SLAM_ROS
