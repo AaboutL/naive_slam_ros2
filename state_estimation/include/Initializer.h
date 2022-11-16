@@ -36,7 +36,11 @@ public:
         const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
         const std::vector<unsigned long>& vChainIds);
 
+    void NormalizePoseAndPoint(Frame* pF1, Frame* pF2, std::vector<Eigen::Vector3d>& vPts3D, 
+        const std::vector<unsigned long>& vChainIds);
+
     bool VisualInertialInit(std::vector<Frame*>& vpFrames);
+    void Reset();
 
 private:
     int mMatchNumTh;
@@ -48,6 +52,10 @@ private:
     // Eigen::Matrix4d mTbc;
     Sophus::SE3d mTbc;
     Sophus::SE3d mTcb;
+
+    Eigen::Matrix3d mRwg;
+    Eigen::Vector3d mAccBias;
+    Eigen::Vector3d mGyrBias;
 };
     
 } // namespace Naive_SLAM_ROS

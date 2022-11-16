@@ -29,12 +29,13 @@ public:
 
     void Estimate(const std::pair<PointCloud, std::vector<IMU>>& pMeas);
 
-    bool VisualOnlyInit();
+    bool Initialize();
     int SolveRelativePose(const std::vector<Eigen::Vector2d> &vPts0, const std::vector<Eigen::Vector2d> &vPts1,
                           cv::Mat &R10, cv::Mat &t10);
 
     void Preintegrate(Frame* frame, const std::vector<IMU>& vIMUs);
-    void Marginalize();
+    void Marginalize(int margPos=0);
+    void Reset();
 
 private:
     int mWindowSize;
@@ -54,6 +55,7 @@ private:
     double mAccNoise;
     double mGyrBiasWalk;
     double mAccBiasWalk;
+    double mIMUFrequency;
 
     // Eigen::Matrix4d mTbc;
     Sophus::SE3d mTbc;

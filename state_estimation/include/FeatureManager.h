@@ -72,6 +72,7 @@ public:
 
     bool IsChainGood(unsigned long chainId);
     bool IsChainPosSet(unsigned long chainId);
+    void Reset();
 
 private:
     std::unordered_map<unsigned long, FeatureChain> mmChains;

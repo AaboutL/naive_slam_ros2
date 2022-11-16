@@ -90,6 +90,9 @@ void Preintegrator::Integrate(const IMU& imu){
     B.block<3, 3>(6, 3) = 0.5 * mDeltaR * dt * dt;
     mCov.block<9, 9>(0, 0) = A * mCov.block<9, 9>(0, 0) * A.transpose() + B * mGyrAccNoise * B.transpose();
     mCov.block<6, 6>(9, 9) += mGyrAccBiasWalk;
+    std::cout << std::endl << "A: ********************************************************" << std::endl << A << std::endl;
+    std::cout << std::endl << "B: ********************************************************" << std::endl << B << std::endl;
+    std::cout << std::endl << "IMU Cov:***************************************************" << std::endl << mCov.block<9, 9>(0, 0) << std::endl;
 
     mJPba = mJPba + mJVba * dt - 0.5 * mDeltaR * dt * dt;
     mJPbg = mJPbg + mJVbg * dt - 0.5 * mDeltaR * acc_hat * mJRbg * dt * dt;
@@ -155,8 +158,8 @@ void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::
 }
 
 Eigen::Matrix3d Preintegrator::UpdateDeltaR(const Eigen::Vector3d& deltaGyrBias){
-    // return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
-    return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
+    return NormalizeRotation(mDeltaR * Sophus::SO3d::exp(mJRbg * deltaGyrBias).matrix());
+    // return NormalizeRotation(mDeltaR * LieAlg::Exp(mJRbg * deltaGyrBias));
 }
 
 Eigen::Vector3d Preintegrator::UpdateDeltaV(const Eigen::Vector3d& deltaGyrBias, const Eigen::Vector3d& deltaAccBias){
@@ -228,7 +231,7 @@ Eigen::Matrix3d RightJacobian(const Eigen::Vector3d& v){
         R = Eigen::Matrix3d::Identity();
     }
     else{
-        R = Eigen::Matrix3d::Identity() + (1 - cos(n)) * v_hat / n2 + (n - sin(n)) * v_hat * v_hat / (n2 * n);
+        R = Eigen::Matrix3d::Identity() - (1 - cos(n)) * v_hat / n2 + (n - sin(n)) * v_hat * v_hat / (n2 * n);
     }
     return R;
 }

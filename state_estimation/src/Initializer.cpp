@@ -11,6 +11,9 @@ Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d
                         Sophus::SE3d& Tbc):
 mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM), 
 mTbc(Tbc), mTcb(Tbc.inverse()){
+    mRwg.setIdentity();
+    mGyrBias.setZero();
+    mAccBias.setZero();
 }
 
 
@@ -22,16 +25,16 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     std::vector<unsigned long> vChainIds;
 
     std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
-    int matchId = 1;
+    int matchFId = 1;
     int bGood = false;
-    for(; matchId < vpFrames.size(); matchId++){
+    for(; matchFId < vpFrames.size(); matchFId++){
         vPts2D1.clear();
         vPts2D2.clear();
         vChainIds.clear();
         cvPts2D1.clear();
         cvPts2D2.clear();
 
-        int matchNum = mpFM->GetMatches(0, matchId, vPts2D1, vPts2D2, vChainIds);
+        int matchNum = mpFM->GetMatches(0, matchFId, vPts2D1, vPts2D2, vChainIds);
         std::cout << "[Initializer::VisualOnlyInitS1] matchNum=" << matchNum << std::endl;
         if(matchNum < 20){
             continue;
@@ -50,7 +53,7 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
         std::sort(parallaxs.begin(), parallaxs.end());
         if(parallaxs[matchNum / 2] >= 18){
             bGood = true;
-            std::cout << "[Initializer::VisualOnlyInitS1] Find good match id: " << matchId << std::endl;
+            std::cout << "[Initializer::VisualOnlyInitS1] Find good match id: " << matchFId << std::endl;
             break;
         }
     }
@@ -72,10 +75,14 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
         vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
 
-    mInitIdx = matchId;
+    mInitIdx = matchFId;
 
-    Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames.back(), mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
+    Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames[matchFId], mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
     std::cout << "[Initializer::VisualOnlyInitS1] Done succeed" << std::endl;
+
+    // norm frame pose and 3D point
+    NormalizePoseAndPoint(vpFrames.front(), vpFrames[matchFId], vPts3D, vChainIds);
+
     return true;
 }
     
@@ -192,10 +199,43 @@ std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matri
     return vPts3D;
 }
 
+void Initializer::NormalizePoseAndPoint(Frame* pF1, Frame* pF2, std::vector<Eigen::Vector3d>& vPts3D,
+                                        const std::vector<unsigned long>& vChainIds){
+    std::cout << "[Initializer::NormalizePoseAndPoint] Start" << std::endl;
+    std::vector<double> vZs;
+    std::vector<int> vGoodIds;
+    for(int i = 0; i < vPts3D.size(); i++){
+        if(mpFM->IsChainPosSet(vChainIds[i])){
+            vZs.emplace_back(vPts3D[i][2]);
+            vGoodIds.emplace_back(i);
+        }
+    }
+    sort(vZs.begin(), vZs.end());
+    double medianDepth = vZs[(vZs.size() - 1) / 2];
+    double invMedianDepth = 4.0 / medianDepth;
+
+    // Norm pose
+    auto Tcw = pF2->GetTcw();
+    std::cout << "******************Tcw before norm:******************" << std::endl << Tcw.translation().transpose() << std::endl;
+    Tcw.translation() *= invMedianDepth;
+    pF2->SetTcw(Tcw);
+    std::cout << "******************Tcw after norm:******************" << std::endl << Tcw.translation().transpose() << std::endl;
+
+    // norm 3D points
+    for(int i = 0; i < vPts3D.size(); i++){
+        if(mpFM->IsChainPosSet(vChainIds[i])){
+            std::cout << "pt before norm: " << vPts3D[i].transpose();
+            Eigen::Vector3d normedWorldPos = vPts3D[i] * invMedianDepth;
+            std::cout << "    pt after norm: " << normedWorldPos.transpose() << std::endl;;
+            mpFM->UpdateWorldPos(vChainIds[i], normedWorldPos);   
+        }
+    }
+    std::cout << "[Initializer::NormalizePoseAndPoint] Done" << std::endl;
+}
+
 bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     std::cout << "[Initializer::VisualInertialInit] Start" << std::endl;
     // manage initial value
-    Eigen::Matrix3d Rwg;
     Eigen::Vector3d dirG(0, 0, 0);
     auto firstTimestamp = vpFrames.front()->mdTimestamp;
     for(int i = 1; i < vpFrames.size(); i++){
@@ -214,14 +254,25 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     double ang = acos(gI.dot(dirG));
     Eigen::Vector3d vzg = ang * v;
     // Rwg = Sophus::SO3d::exp(vzg).matrix();
-    Rwg = LieAlg::Exp(vzg);
+    mRwg = LieAlg::Exp(vzg);
 
     double scale = 1.0;
 
-    Optimizer::VIInitOptimize(vpFrames, Rwg, scale, 1e10, 1e2);
-    std::cout << "[Initializer::VisualInertialInit] Done" << std::endl;
-    exit(0);
+    Optimizer::VIInitOptimize(vpFrames, mRwg, mGyrBias, mAccBias, scale, 1e10, 1e2);
+    if(scale < 0.1){
+        std::cout << "[Initializer::VisualInertialInit] Done fail" << std::endl;
+        return false;
+    }
+    std::cout << "[Initializer::VisualInertialInit] Done Good" << std::endl;
     return true;
 }
+
+void Initializer::Reset(){
+    mInitIdx = 0;
+    mRwg.setIdentity();
+    mGyrBias.setZero();
+    mAccBias.setZero();
+}
+
 
 } // namespace Naive_SLAM_ROS

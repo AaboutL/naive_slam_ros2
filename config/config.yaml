@@ -30,6 +30,7 @@ IMU.GyrNoise: 1.6968e-04
 IMU.GyrBiasWalk: 1.9393e-05
 IMU.AccNoise: 2.0000e-3
 IMU.AccBiasWalk: 3.0000e-3
+IMU.Frequency: 200.0
 
 IMU.Tbc: !!opencv-matrix
   rows: 4

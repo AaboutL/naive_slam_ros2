@@ -36,7 +36,6 @@ void EdgeInertialGS::computeError(){
     const VertexGDir* VGDir = static_cast<const VertexGDir*>(_vertices[6]);
     const VertexScale* VS = static_cast<const VertexScale*>(_vertices[7]);
 
-    // const IMU::Bias b(VA->estimate()[0],VA->estimate()[1],VA->estimate()[2],VG->estimate()[0],VG->estimate()[1],VG->estimate()[2]);
     const Eigen::Vector3d gyrBiasNew = VGB->estimate();
     const Eigen::Vector3d accBiasNew = VAB->estimate();
     mG = VGDir->estimate().mRwg*mGI;
@@ -53,14 +52,6 @@ void EdgeInertialGS::computeError(){
     Eigen::Vector3d er = (Sophus::SO3d(dR.transpose()) * R1wb.inverse() * R2wb).log();
     Eigen::Vector3d ev = R1wb.matrix().transpose() * (s *(VV2->estimate() - VV1->estimate()) - mG * mdT) - dV;
     Eigen::Vector3d ep = R1wb.matrix().transpose() * (s *(t2wb - t1wb - VV1->estimate() * mdT) - mG * mdT * mdT * 0.5) - dP;
-
-    // const Eigen::Matrix3d dR = mpInt->GetDeltaRotation(b).cast<double>();
-    // const Eigen::Vector3d dV = mpInt->GetDeltaVelocity(b).cast<double>();
-    // const Eigen::Vector3d dP = mpInt->GetDeltaPosition(b).cast<double>();
-
-    // const Eigen::Vector3d er = LogSO3(dR.transpose()*VPose1->estimate().Rwb.transpose()*VPose2->estimate().Rwb);
-    // const Eigen::Vector3d ev = VPose1->estimate().Rwb.transpose()*(s*(VV2->estimate() - VV1->estimate()) - g*dt) - dV;
-    // const Eigen::Vector3d ep = VPose1->estimate().Rwb.transpose()*(s*(VPose2->estimate().twb - VPose1->estimate().twb - VV1->estimate()*dt) - g*dt*dt/2) - dP;
 
     _error << er, ev, ep;
 }
@@ -159,9 +150,9 @@ void EdgeInertialGS::linearizeOplus(){
     // jacobian(9, 1) wrt scale
     _jacobianOplus[7].setZero();
     // velocity residual wrt scale
-    _jacobianOplus[7].block<3,1>(3,0) = R1bw.matrix() * (VV2->estimate() - VV1->estimate()) * s;
+    _jacobianOplus[7].block<3,1>(3,0) = R1bw.matrix() * (VV2->estimate() - VV1->estimate());
     // position residual wrt scale
-    _jacobianOplus[7].block<3,1>(6,0) = R1bw.matrix() * (t2wb - t1wb - VV1->estimate() * mdT) * s;
+    _jacobianOplus[7].block<3,1>(6,0) = R1bw.matrix() * (t2wb - t1wb - VV1->estimate() * mdT);
 }
 
 

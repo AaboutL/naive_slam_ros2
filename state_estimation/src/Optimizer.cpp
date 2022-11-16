@@ -342,7 +342,8 @@ int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, 
     return goodChainNum;
 }
 
-int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, double scale, double priorAcc, double priorGyr){
+int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias, 
+                              Eigen::Vector3d& accBias, double& scale, double priorAcc, double priorGyr){
     std::cout << "[Optimizer::VIInitOptimize] Start" << std::endl;
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linearSolver =
@@ -368,12 +369,12 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
         optimizer.addVertex(vVel);
     }
     // bias
-    VertexGyrBias* vGB = new VertexGyrBias(vpFrames.back()->GetGyrBias());
+    VertexGyrBias* vGB = new VertexGyrBias(gyrBias);
     vGB->setId(usedFrameNum * 2);
     vGB->setFixed(false);
     optimizer.addVertex(vGB);
 
-    VertexAccBias* vAB = new VertexAccBias(vpFrames.back()->GetAccBias());
+    VertexAccBias* vAB = new VertexAccBias(accBias);
     vAB->setId(usedFrameNum * 2 + 1);
     vAB->setFixed(false);
     optimizer.addVertex(vAB);
@@ -430,9 +431,13 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, const Eigen::Matrix
     optimizer.initializeOptimization();
     optimizer.optimize(200);
 
-    std::cout << "opted gyr bias: " << vGB->estimate() << std::endl;
-    std::cout << "opted acc bias: " << vAB->estimate() << std::endl;
-    std::cout << "opted scale: " << vS->estimate() << std::endl;
+    scale = vS->estimate();
+    gyrBias = vGB->estimate();
+    accBias = vAB->estimate();
+
+    std::cout << "opted gyr bias: " << gyrBias.transpose() << std::endl;
+    std::cout << "opted acc bias: " << accBias.transpose() << std::endl;
+    std::cout << "opted scale: " << scale << std::endl;
 
     std::cout << "[Optimizer::VIInitOptimize] Done" << std::endl;
     return 1;

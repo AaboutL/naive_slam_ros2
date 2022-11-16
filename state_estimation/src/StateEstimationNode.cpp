@@ -103,6 +103,7 @@ void StateEstimationNode::Run(){
         });
         ulk.unlock();
         for(auto & meas : vMeasurements){
+            std::cout << "************************** current frame id=" << i << " ****************************************" << std::endl;
             i++;
             if (i < 66) continue;
             std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;

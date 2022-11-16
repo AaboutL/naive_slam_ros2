@@ -228,4 +228,8 @@ bool FeatureManager::IsChainPosSet(unsigned long chainId){
     }
 }
 
+void FeatureManager::Reset(){
+    mmChains.clear();
+}
+
 } // namespace Naive_SLAM_ROS

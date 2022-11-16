@@ -27,10 +27,11 @@ mFrameId(0), mState(INIT){
     mAccNoise = fs["IMU.AccNoise"];
     mGyrBiasWalk = fs["IMU.GyrBiasWalk"];
     mAccBiasWalk = fs["IMU.AccBiasWalk"];
+    mIMUFrequency = fs["IMU.Frequency"];
     cv::Mat cvTbc = fs["IMU.Tbc"].mat();
     Eigen::Matrix4d eTbc;
     cv::cv2eigen(cvTbc, eTbc);
-    mTbc = Sophus::SE3(eTbc);
+    mTbc = Sophus::SE3d(eTbc);
 
     mpInitializer = new Initializer(20, 18, mK, mpFM, mTbc);
     mpLastFrame = nullptr;
@@ -54,10 +55,16 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
         return;
     } 
     else{
+        // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
         if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
-            int flag = VisualOnlyInit();
-            if(flag)
-                mpInitializer->VisualInertialInit(mvpFrames);
+            int flag = Initialize();
+            if(flag){
+                mState = ESTIMATE;
+            }
+            else{
+                Reset();
+                return;
+            }
         }
         if(mState == ESTIMATE){
             // TODO
@@ -70,8 +77,7 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
     }
 }
 
-bool StateEstimator::VisualOnlyInit(){
-    // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
+bool StateEstimator::Initialize(){
     bool bS1 = mpInitializer->VisualOnlyInitS1(mvpFrames);
     if(!bS1){
         return false;
@@ -81,13 +87,23 @@ bool StateEstimator::VisualOnlyInit(){
     if(!bS2){
         return false;
     }
+    bool bVI = mpInitializer->VisualInertialInit(mvpFrames);
+    if(!bVI){
+        return false;
+    } 
     return true;
 }
 
 void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     std::cout << "[StateEstimator::Preintegrate] Start" << std::endl;
-    Preintegrator *preintegrator = new Preintegrator(mGyrNoise, mAccNoise, 
-        mGyrBiasWalk, mAccBiasWalk, mLastGyrBias, mLastAccBias);
+
+    double sqrtFreq = sqrt(mIMUFrequency);
+    double GyrN = mGyrNoise * sqrtFreq;
+    double AccN = mAccNoise * sqrtFreq;
+    double GyrBiasW = mGyrBiasWalk / sqrtFreq;
+    double AccBiasW = mAccBiasWalk / sqrtFreq;
+    Preintegrator *preintegrator = new Preintegrator(GyrN, AccN, 
+        GyrBiasW, AccBiasW, mLastGyrBias, mLastAccBias);
 
     for(int i = 0; i < vIMUs.size(); i++){
         auto imu = vIMUs[i];
@@ -119,21 +135,50 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     std::cout << "[StateEstimator::Preintegrate] Done" << std::endl;
 }
 
-void StateEstimator::Marginalize(){
+void StateEstimator::Marginalize(int margPos){
     std::cout << "mvpFrame size before marginalize = " << mvpFrames.size() << std::endl;
-    if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
+    if((mState == INIT || margPos == 0) && mvpFrames.size() == mWindowSize + 1){
         auto* pFDel = mvpFrames.front();
         mvpFrames.erase(mvpFrames.begin());
-        std::cout << "test1" << std::endl;
         mpFM->EraseFront();
-        std::cout << "test2" << std::endl;
         delete pFDel;
-        std::cout << "test3" << std::endl;
         pFDel = nullptr;
-        std::cout << "test4" << std::endl;
+    }
+    if(margPos == mWindowSize && mvpFrames.size() == mWindowSize + 1){
+        auto* pFDel = mvpFrames.back();
+        mvpFrames.pop_back();
+        mpFM->EraseBack();
+        delete pFDel;
+        pFDel = nullptr;
     }
     std::cout << "mvpFrame size after marginalize = " << mvpFrames.size() << std::endl;
 
+}
+
+void StateEstimator::Reset(){
+    std::cout << "**********************************************************************************************************************"<< std::endl;
+    std::cout << "                                             [StateEstimator::Reset]                                                  "<< std::endl;
+    std::cout << "**********************************************************************************************************************"<< std::endl;
+    mFrameId = 0;
+    mState = INIT;
+    mpFM->Reset();
+
+    std::cout << "[StateEstimator::Reset] before mvpFrame size=" << mvpFrames.size() << std::endl;
+    auto it = mvpFrames.begin();
+    while(it != mvpFrames.end()){
+        auto pF = *it;
+        mvpFrames.erase(it);
+        delete pF;
+        pF = nullptr;
+    }
+    std::cout << "[StateEstimator::Reset] after mvpFrame size=" << mvpFrames.size() << std::endl;
+
+    mLastGyrBias.setZero();
+    mLastAccBias.setZero();
+
+    mpInitializer->Reset();
+    mpLastFrame = nullptr;
+    mvLastIMUs = std::vector<IMU>();
 }
 
 } // namespace Naive_SLAM_ROS
