@@ -13,6 +13,7 @@ mJPba(pPreint->GetJPba()), mJPbg(pPreint->GetJPbg()), mpPreint(pPreint),
 mGI(Eigen::Vector3d(0, 0, -9.81)), mdT(pPreint->GetDeltaT()){
     resize(8); // This edge has 8 vertices
     Matrix9d info = pPreint->GetCov().block<9, 9>(0, 0).inverse();
+    std::cout << "Cov: " << std::endl << pPreint->GetCov().block<9, 9>(0, 0) << std::endl;
     info = (info + info.transpose()) * 0.5; // make symmetrical matrix. Infomation matrix is a symmetrical matrix
     Eigen::SelfAdjointEigenSolver<Matrix9d> es(info);
     Vector9d eigs = es.eigenvalues();

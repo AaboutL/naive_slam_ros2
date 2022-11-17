@@ -58,8 +58,13 @@ void GeometryFunc::SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const st
     }
     cv::Mat cvr21, cvt21, cvR21, inliers, cvK;
     cv::eigen2cv(K, cvK);
+    cv::eigen2cv(t21, cvt21);
+    cv::eigen2cv(R21, cvR21);
+    cv::Rodrigues(cvR21, cvr21);
+    // cv::solvePnPRansac(cvPts3D, cvPts2D, cvK, cv::Mat::zeros(4, 1, CV_32F),
+    //                     cvr21, cvt21, false, 100, 2, 0.99, inliers, cv::SOLVEPNP_EPNP);
     cv::solvePnPRansac(cvPts3D, cvPts2D, cvK, cv::Mat::zeros(4, 1, CV_32F),
-                        cvr21, cvt21, false, 100, 2, 0.99, inliers, cv::SOLVEPNP_EPNP);
+                        cvr21, cvt21, true, 100, 2, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
     
     cv::Rodrigues(cvr21, cvR21);
     cv::cv2eigen(cvR21, R21);

@@ -95,9 +95,11 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
         std::vector<unsigned long> vChainIds;
         int matchNum = mpFM->GetMatches(0, i, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
+        if(vPts3D.size() < 10)
+            return false;
 
-        Eigen::Matrix3d Rcw2;
-        Eigen::Vector3d tcw2;
+        Eigen::Matrix3d Rcw2 = vpFrames[i-1]->GetTcw().rotationMatrix();
+        Eigen::Vector3d tcw2 = vpFrames[i-1]->GetTcw().translation();
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
         vpFrames[i]->SetTcw(Rcw2, tcw2);
 
@@ -112,9 +114,11 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
         std::vector<unsigned long> vChainIds;
         int matchNum = mpFM->GetMatches(i - 1, i, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
+        if(vPts3D.size() < 10)
+            return false;
 
-        Eigen::Matrix3d Rcw2;
-        Eigen::Vector3d tcw2;
+        Eigen::Matrix3d Rcw2 = vpFrames[i-1]->GetTcw().rotationMatrix();
+        Eigen::Vector3d tcw2 = vpFrames[i-1]->GetTcw().translation();
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
         vpFrames[i]->SetTcw(Rcw2, tcw2);
 
@@ -134,6 +138,7 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
             vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
     }
+    std::cout << "[Initializer::VisualOnlyInitS2] Triangle left done" << std::endl;
 
     int goodChainNum = Optimizer::VisualOnlyBA(vpFrames, mpFM, mK);
     std::cout << "[Initializer::VisualOnlyInitS2] Done succeed" << std::endl;
@@ -246,6 +251,8 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
         double dT = pCurF->mdTimestamp - pPreF->mdTimestamp;
         Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
         pPreF->SetVelocity(vel);
+        std::cout << "[Initializer::VisualInertialInit] frame=" << i << "  Pose:" << std::endl;
+        std::cout << pCurF->GetTcw().rotationMatrix() << std::endl << pCurF->GetTcw().translation().transpose() << std::endl;
     }
     dirG.normalize();
     Eigen::Vector3d gI(0, 0, -1);

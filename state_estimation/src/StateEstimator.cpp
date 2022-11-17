@@ -117,7 +117,7 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
             Eigen::Vector3d midGyr = (lastImu.mGyr + (imu.mGyr - lastImu.mGyr) / dt * dtPre + imu.mGyr) * 0.5;
             preintegrator->Integrate(IMU(-1, midAcc, midGyr, (dt - dtPre)));
         }
-        else if(i != 0 && i < vIMUs.size() - 1){
+        else if(i > 0 && i < vIMUs.size() - 1){
             double dt = imu.mdTimestamp - vIMUs[i-1].mdTimestamp;
             Eigen::Vector3d midAcc = (vIMUs[i-1].mAcc + imu.mAcc) * 0.5;
             Eigen::Vector3d midGyr = (vIMUs[i-1].mGyr + imu.mGyr) * 0.5;
