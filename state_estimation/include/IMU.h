@@ -23,12 +23,15 @@ public:
     IMU(){}
     IMU(double timestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr, double dt);
     IMU(const IMU& imu);
+    IMU(double timestamp, const std::string& sTimestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr, double dt);
+
 public:
     double mdTimestamp;
     Eigen::Vector3d mAcc;
     Eigen::Vector3d mGyr;
     Eigen::Vector3d mVel;
     double mdt; // duration between last and cur
+    std::string msTimestamp;
 };
 
 class Preintegrator{

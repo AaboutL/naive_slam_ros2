@@ -11,7 +11,11 @@ mdTimestamp(timestamp), mAcc(acc), mGyr(gyr), mVel(Eigen::Vector3d::Zero()), mdt
 }
 
 IMU::IMU(const IMU& imu):
-mdTimestamp(imu.mdTimestamp), mAcc(imu.mAcc), mGyr(imu.mGyr), mVel(imu.mVel), mdt(imu.mdt){}
+mdTimestamp(imu.mdTimestamp), mAcc(imu.mAcc), mGyr(imu.mGyr), mVel(imu.mVel), mdt(imu.mdt), msTimestamp(imu.msTimestamp){}
+
+IMU::IMU(double timestamp, const std::string& sTimestamp, const Eigen::Vector3d& acc, const Eigen::Vector3d& gyr, double dt):
+mdTimestamp(timestamp), mAcc(acc), mGyr(gyr), mVel(Eigen::Vector3d::Zero()), mdt(dt), msTimestamp(sTimestamp){
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -11,11 +11,11 @@ Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d
                         Sophus::SE3d& Tbc):
 mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM), 
 mTbc(Tbc), mTcb(Tbc.inverse()){
-    mRwg.setIdentity();
-    mGyrBias.setZero();
-    mAccBias.setZero();
 }
 
+void Initializer::Reset(){
+    mInitIdx = 0;
+}
 
 bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     std::cout << "[Initializer::VisualOnlyInitS1] Start" << std::endl;
@@ -249,10 +249,12 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
         Eigen::Matrix3d Rwbi = pPreF->mRwc * mTcb.rotationMatrix();
         dirG -= Rwbi * pCurF->mpPreintegrator->GetDeltaV();
         double dT = pCurF->mdTimestamp - pPreF->mdTimestamp;
-        Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
+        // Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
+        Eigen::Vector3d vel(0, 0, 0);
         pPreF->SetVelocity(vel);
         std::cout << "[Initializer::VisualInertialInit] frame=" << i << "  Pose:" << std::endl;
         std::cout << pCurF->GetTcw().rotationMatrix() << std::endl << pCurF->GetTcw().translation().transpose() << std::endl;
+        std::cout << "[Initializer::VisualInertialInit] vel = " << vel.transpose() << std::endl;
     }
     dirG.normalize();
     Eigen::Vector3d gI(0, 0, -1);
@@ -261,11 +263,14 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     double ang = acos(gI.dot(dirG));
     Eigen::Vector3d vzg = ang * v;
     // Rwg = Sophus::SO3d::exp(vzg).matrix();
-    mRwg = LieAlg::Exp(vzg);
+    Eigen::Matrix3d Rwg = LieAlg::Exp(vzg);
+
+    Eigen::Vector3d AccBias(0, 0, 0);
+    Eigen::Vector3d GyrBias(0, 0, 0);
 
     double scale = 1.0;
 
-    Optimizer::VIInitOptimize(vpFrames, mRwg, mGyrBias, mAccBias, scale, 1e10, 1e2);
+    Optimizer::VIInitOptimize(vpFrames, Rwg, GyrBias, AccBias, scale, 1e10, 1e2);
     if(scale < 0.1){
         std::cout << "[Initializer::VisualInertialInit] Done fail" << std::endl;
         return false;
@@ -274,12 +279,11 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     return true;
 }
 
-void Initializer::Reset(){
-    mInitIdx = 0;
-    mRwg.setIdentity();
-    mGyrBias.setZero();
-    mAccBias.setZero();
+void Initializer::VisualInertialAlign(const Eigen::Matrix3d& Rwg, const Eigen::Vector3d& gyrBias, 
+                                      const Eigen::Vector3d& accBias, double scale){
+
 }
+
 
 
 } // namespace Naive_SLAM_ROS

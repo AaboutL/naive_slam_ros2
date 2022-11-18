@@ -37,6 +37,8 @@ public:
     void Marginalize(int margPos=0);
     void Reset();
 
+    bool CheckIMUObservability();
+
 private:
     int mWindowSize;
     unsigned long mFrameId;

@@ -57,6 +57,10 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
     else{
         // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
         if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
+            if(!CheckIMUObservability()){
+                Reset();
+                return;
+            }
             int flag = Initialize();
             if(flag){
                 mState = ESTIMATE;
@@ -179,6 +183,31 @@ void StateEstimator::Reset(){
     mpInitializer->Reset();
     mpLastFrame = nullptr;
     mvLastIMUs = std::vector<IMU>();
+}
+
+bool StateEstimator::CheckIMUObservability(){
+    std::cout << "[StateEstimator::CheckIMUObservability] Start" << std::endl;
+    Eigen::Vector3d sum_acc(0, 0, 0);
+    std::vector<Eigen::Vector3d> vAcc(mvpFrames.size());
+    for(int i = 0; i < mvpFrames.size(); i++){
+        double dt = mvpFrames[i]->mpPreintegrator->GetDeltaT();
+        auto acc = mvpFrames[i]->mpPreintegrator->GetDeltaV() / dt;
+        sum_acc += acc;
+        vAcc[i] = acc;
+    }
+
+    Eigen::Vector3d avg_acc = sum_acc / (mvpFrames.size() - 1);
+    double var = 0;
+    for(int i = 0; i < mvpFrames.size(); i++){
+        var += (vAcc[i] - avg_acc).dot(vAcc[i] - avg_acc);
+    }
+    var = sqrt(var / (mvpFrames.size() - 1));
+    if(var < 0.25){
+        std::cout << "[StateEstimator::CheckIMUObservability] Done failed!" << std::endl;
+        return false;
+    }
+    std::cout << "[StateEstimator::CheckIMUObservability] Done succeed!" << std::endl;
+    return true;
 }
 
 } // namespace Naive_SLAM_ROS

@@ -27,6 +27,8 @@ public:
     Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM,
                 Sophus::SE3d& Tbc);
 
+    void Reset();
+
     bool VisualOnlyInitS1(std::vector<Frame*>& qFrames);
 
     bool VisualOnlyInitS2(std::vector<Frame*>& qFrames);
@@ -40,7 +42,8 @@ public:
         const std::vector<unsigned long>& vChainIds);
 
     bool VisualInertialInit(std::vector<Frame*>& vpFrames);
-    void Reset();
+    void VisualInertialAlign(const Eigen::Matrix3d& Rwg, const Eigen::Vector3d& gyrBias, 
+                             const Eigen::Vector3d& accBias, double scale);
 
 private:
     int mMatchNumTh;
@@ -49,13 +52,9 @@ private:
     int mInitIdx;
     FeatureManager* mpFM;
 
-    // Eigen::Matrix4d mTbc;
     Sophus::SE3d mTbc;
     Sophus::SE3d mTcb;
 
-    Eigen::Matrix3d mRwg;
-    Eigen::Vector3d mAccBias;
-    Eigen::Vector3d mGyrBias;
 };
     
 } // namespace Naive_SLAM_ROS

@@ -25,11 +25,16 @@ public:
           const std::vector<Eigen::Vector2d>& vPtsUn, const std::vector<Eigen::Vector2d>& vPts, 
           const std::vector<Eigen::Vector2d>& vPtUnOffsets);
 
+    PointCloud(double timestamp, const std::string& sTimestamp, const std::vector<unsigned long>& vChainIds, 
+          const std::vector<Eigen::Vector2d>& vPtsUn, const std::vector<Eigen::Vector2d>& vPts, 
+          const std::vector<Eigen::Vector2d>& vPtUnOffsets);
+
     double mdTimestamp;
     std::vector<unsigned long> mvChainIds;
     std::vector<Eigen::Vector2d> mvPtsUn;
     std::vector<Eigen::Vector2d> mvPts;
     std::vector<Eigen::Vector2d> mvPtUnOffsets;
+    std::string msTimestamp;
 };
 
 class Frame{

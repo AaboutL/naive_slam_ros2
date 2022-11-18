@@ -36,7 +36,9 @@ void StateEstimationNode::PointCloudCallback(const sensor_msgs::msg::PointCloud:
     }
 
     auto ts = rclcpp::Time(pc_msg->header.stamp.sec, pc_msg->header.stamp.nanosec);
-    PointCloud pc(ts.seconds(), vChainIds, vPtsUn, vPts, vPtUnOffsets);
+    // PointCloud pc(ts.seconds(), vChainIds, vPtsUn, vPts, vPtUnOffsets);
+    PointCloud pc(ts.seconds(), std::to_string(pc_msg->header.stamp.sec) + std::to_string(pc_msg->header.stamp.nanosec), 
+                  vChainIds, vPtsUn, vPts, vPtUnOffsets);
 
     mMutexBuffer.lock();
     mqPointClouds.emplace(pc);
@@ -53,7 +55,9 @@ void StateEstimationNode::IMUCallback(const sensor_msgs::msg::Imu::ConstSharedPt
     double wz = imu_msg->angular_velocity.z;
 
     auto ts = rclcpp::Time(imu_msg->header.stamp.sec, imu_msg->header.stamp.nanosec);
-    IMU imu(ts.seconds(), Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz), -1);
+    // IMU imu(ts.seconds(), Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz), -1);
+    IMU imu(ts.seconds(), std::to_string(imu_msg->header.stamp.sec) + std::to_string(imu_msg->header.stamp.nanosec), 
+            Eigen::Vector3d(ax, ay, az), Eigen::Vector3d(wx, wy, wz), -1);
     
     mMutexBuffer.lock();
     mqIMUs.emplace(imu);
@@ -106,7 +110,11 @@ void StateEstimationNode::Run(){
             std::cout << "******************************************************* current frame id=" << i <<
                          " ********************************************************" << std::endl;
             i++;
-            if (i < 66) continue;
+            // for(int i = 0; i < meas.second.size(); i++){
+            //     std::cout << meas.first.msTimestamp << "  " << meas.second[i].msTimestamp << std::endl;
+            // }
+            // std::cout << std::endl;
+            if (i < 2) continue;
             std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
             mpEstimator->Estimate(meas);
             std::cout << "*****************************[StateEstimationNode::Run] mpEstimator->Estimate() done***************************************" << std::endl;

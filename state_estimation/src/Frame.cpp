@@ -12,6 +12,13 @@ PointCloud::PointCloud(double timestamp, const std::vector<unsigned long>& vChai
 mdTimestamp(timestamp), mvChainIds(vChainIds), mvPtsUn(vPtsUn), mvPts(vPts), mvPtUnOffsets(vPtUnOffsets){
 }
 
+PointCloud::PointCloud(double timestamp, const std::string& sTimestamp, const std::vector<unsigned long>& vChainIds, 
+          const std::vector<Eigen::Vector2d>& vPtsUn, const std::vector<Eigen::Vector2d>& vPts, 
+          const std::vector<Eigen::Vector2d>& vPtUnOffsets):
+mdTimestamp(timestamp), mvChainIds(vChainIds), mvPtsUn(vPtsUn), mvPts(vPts), mvPtUnOffsets(vPtUnOffsets),
+msTimestamp(sTimestamp){
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Frame::Frame(double timestamp):mdTimestamp(timestamp){
