@@ -270,7 +270,7 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
 
     double scale = 1.0;
 
-    Optimizer::VIInitOptimize(vpFrames, Rwg, GyrBias, AccBias, scale, 1e10, 1e2);
+    Optimizer::InertialOnlyBA(vpFrames, Rwg, GyrBias, AccBias, scale, 1e10, 1e2);
     if(scale < 0.1){
         std::cout << "[Initializer::VisualInertialInit] Done fail" << std::endl;
         return false;
@@ -279,9 +279,24 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
     return true;
 }
 
-void Initializer::VisualInertialAlign(const Eigen::Matrix3d& Rwg, const Eigen::Vector3d& gyrBias, 
+void Initializer::VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg, const Eigen::Vector3d& gyrBias, 
                                       const Eigen::Vector3d& accBias, double scale){
+    Sophus::SE3d Tgw(Rwg.transpose(), Eigen::Vector3d::Zero());
+    Eigen::Matrix3d Rgw = Tgw.rotationMatrix();
+    Eigen::Matrix3d tgw = Tgw.translation();
+    for(int i = 0; i < vpFrames.size(); i++){
+        auto* pF = vpFrames[i];
+        auto Twc = pF->GetTcw().inverse();
+        Twc.translation() *= scale;
+        Sophus::SE3d Tgc = Tgw * Twc;
+        pF->SetTcw(Tgc.inverse());
 
+        auto vel = pF->GetVelocity();
+        pF->SetVelocity(Rgw * vel * scale);
+        pF->mpPreintegrator->ReIntegrate(gyrBias, accBias);
+    }
+
+    mpFM->UpdateWorldPos(Rgw, tgw, scale);
 }
 
 

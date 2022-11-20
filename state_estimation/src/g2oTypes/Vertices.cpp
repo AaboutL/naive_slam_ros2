@@ -18,8 +18,6 @@ void ImuCamPose::Update(const double* pdelta){
     Eigen::Vector3d rdelta, tdelta;
     rdelta << pdelta[0], pdelta[1], pdelta[2];
     tdelta << pdelta[3], pdelta[4], pdelta[5];
-    std::cout << "rdelta: " << rdelta << std::endl;
-    std::cout << "tdelta: " << tdelta << std::endl;
     Sophus::SE3d deltaT(LieAlg::Exp(rdelta), tdelta);
 
     mTwb = mTwb * deltaT;

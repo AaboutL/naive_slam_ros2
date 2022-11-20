@@ -342,9 +342,9 @@ int Optimizer::VisualOnlyBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, 
     return goodChainNum;
 }
 
-int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias, 
+int Optimizer::InertialOnlyBA(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias, 
                               Eigen::Vector3d& accBias, double& scale, double priorAcc, double priorGyr){
-    std::cout << "[Optimizer::VIInitOptimize] Start" << std::endl;
+    std::cout << "[Optimizer::InertialOnlyBA] Start" << std::endl;
     g2o::SparseOptimizer optimizer;
     std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linearSolver =
             std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
@@ -439,8 +439,22 @@ int Optimizer::VIInitOptimize(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rw
     std::cout << "opted acc bias: " << accBias.transpose() << std::endl;
     std::cout << "opted scale: " << scale << std::endl;
 
-    std::cout << "[Optimizer::VIInitOptimize] Done" << std::endl;
+    std::cout << "[Optimizer::InertialOnlyBA] Done" << std::endl;
     return 1;
+}
+
+int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, Eigen::Vector3d& gyrBias,
+                                    Eigen::Vector3d& accBias, double priorAcc, double priorGyr){
+    std::cout << "[Optimizer::InertialOnlyBA] Start" << std::endl;
+    g2o::SparseOptimizer optimizer;
+    std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linearSolver =
+            std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
+    std::unique_ptr<g2o::BlockSolverX> solver_ptr =
+            std::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
+    auto *solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+    solver->setUserLambdaInit(1e-5);
+    optimizer.setAlgorithm(solver);
+    
 }
     
 } // namespace Naive_SLAM_ROS

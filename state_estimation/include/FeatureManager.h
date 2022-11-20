@@ -69,6 +69,7 @@ public:
     void SetWorldPos(unsigned long chainId, const Eigen::Vector3d& pos);
     void SetChainGood(unsigned long chainId, bool bGood);
     void UpdateWorldPos(unsigned long chainId, const Eigen::Vector3d& pos);
+    void UpdateWorldPos(const Eigen::Matrix3d& Rgw, const Eigen::Vector3d& tgw, double scale);
 
     bool IsChainGood(unsigned long chainId);
     bool IsChainPosSet(unsigned long chainId);

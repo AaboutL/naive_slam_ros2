@@ -202,6 +202,14 @@ void FeatureManager::UpdateWorldPos(unsigned long chainId, const Eigen::Vector3d
     }
 }
 
+void FeatureManager::UpdateWorldPos(const Eigen::Matrix3d& Rgw, const Eigen::Vector3d& tgw, double scale){
+    for(auto& [cid, chain] : mmChains){
+        if(chain.bGood){
+            chain.mWorldPos = scale * Rgw * chain.mWorldPos + tgw;
+        }
+    }
+}
+
 void FeatureManager::SetChainGood(unsigned long chainId, bool bGood){
     if(mmChains.find(chainId) != mmChains.end()){
         mmChains.find(chainId)->second.mbGood = bGood;

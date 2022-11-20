@@ -42,8 +42,8 @@ public:
         const std::vector<unsigned long>& vChainIds);
 
     bool VisualInertialInit(std::vector<Frame*>& vpFrames);
-    void VisualInertialAlign(const Eigen::Matrix3d& Rwg, const Eigen::Vector3d& gyrBias, 
-                             const Eigen::Vector3d& accBias, double scale);
+    void VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg,
+                             const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias, double scale);
 
 private:
     int mMatchNumTh;

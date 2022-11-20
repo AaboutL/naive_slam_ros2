@@ -16,6 +16,7 @@
 
 #include <g2o/core/base_multi_edge.h>
 #include <g2o/core/base_unary_edge.h>
+#include <g2o/types/sba/types_sba.h>
 
 #include "g2oTypes/Vertices.h"
 #include "IMU.h"
@@ -25,6 +26,32 @@ namespace Naive_SLAM_ROS{
 typedef Eigen::Matrix<double, 9, 1> Vector9d;
 typedef Eigen::Matrix<double, 9, 9> Matrix9d;
 typedef Eigen::Matrix<double, 15, 15> Matrix15d;
+
+
+class EdgeInertial: public g2o::BaseMultiEdge<9, Vector9d>{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    EdgeInertial(Preintegrator* pPreint);
+    virtual bool read(std::istream& is){return false;}
+    virtual bool write(std::ostream& os) const {return false;}
+
+    void computeError();
+    virtual void linearizeOplus();
+
+public:
+    Eigen::Matrix3d mJRbg;
+    Eigen::Matrix3d mJVba;
+    Eigen::Matrix3d mJVbg;
+    Eigen::Matrix3d mJPba;
+    Eigen::Matrix3d mJPbg;
+
+    Preintegrator* mpPreint;
+    Eigen::Vector3d mG;
+    double mdT;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class EdgeInertialGS: public g2o::BaseMultiEdge<9, Vector9d>{
 public:
@@ -109,6 +136,31 @@ public:
     }
 
     const Eigen::Vector3d bprior;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class EdgeMono : public g2o::BaseBinaryEdge<2, Eigen::Vector2d, g2o::VertexPointXYZ, VertexPose>{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    virtual bool read(std::istream& is){return false;}
+    virtual bool write(std::ostream& os) const {return false;}
+
+    g2o::Vector2 cam_project(const g2o::Vector3 &trans_xyz) const;
+
+    void computeError()
+    {
+        const g2o::VertexPointXYZ *vPoint = static_cast<const g2o::VertexPointXYZ *>(_vertices[0]);
+        const VertexPose *vPose = static_cast<const VertexPose *>(_vertices[1]);
+        const Eigen::Vector2d obs(_measurement);
+        _error = obs - cam_project(vPose->estimate().mTcw * vPoint->estimate());
+    }
+
+    virtual void linearizeOplus();
+
+public:
+    double fx, fy, cx, cy;
 };
 
 } // namespace Naive_SLAM_ROS

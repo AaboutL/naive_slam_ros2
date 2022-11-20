@@ -56,8 +56,11 @@ public:
                         FeatureManager* pFM, 
                         const Eigen::Matrix3d& K);
     
-    static int VIInitOptimize(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias,
+    static int InertialOnlyBA(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias,
                               Eigen::Vector3d& accBias, double& scale, double priorAcc, double priorGyr);
+
+    static int VisualInertialInitBA(std::vector<Frame*>& vpFrames, Eigen::Vector3d& gyrBias,
+                              Eigen::Vector3d& accBias, double priorAcc, double priorGyr);
 };
     
 } // namespace Naive_SLAM_ROS
