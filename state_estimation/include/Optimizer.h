@@ -59,8 +59,11 @@ public:
     static int InertialOnlyBA(std::vector<Frame*>& vpFrames, Eigen::Matrix3d& Rwg, Eigen::Vector3d& gyrBias,
                               Eigen::Vector3d& accBias, double& scale, double priorAcc, double priorGyr);
 
-    static int VisualInertialInitBA(std::vector<Frame*>& vpFrames, Eigen::Vector3d& gyrBias,
-                              Eigen::Vector3d& accBias, double priorAcc, double priorGyr);
+    static int VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManager* pFM, const Eigen::Matrix3d& K, Eigen::Vector3d& gyrBias,
+                                    Eigen::Vector3d& accBias, double priorAcc, double priorGyr);
+
+    // optType: 1 for frame; 2 for KeyFrame
+    static int VisualInertialOptimize(std::vector<Frame*>& vpFrames, FeatureManager* pFM, const Eigen::Matrix3d& K, bool bNotKeyFrame);
 };
     
 } // namespace Naive_SLAM_ROS

@@ -64,6 +64,7 @@ public:
     double GetDeltaT() const;
     Eigen::Vector3d GetGyrBias() const;
     Eigen::Vector3d GetAccBias() const;
+    std::vector<IMU> GetIMUs() const;
 
 private:
     void IntegrateR(const Eigen::Vector3d& gyr, double dt);

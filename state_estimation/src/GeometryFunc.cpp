@@ -71,4 +71,63 @@ void GeometryFunc::SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const st
     cv::cv2eigen(cvt21, t21);
 }
     
+std::vector<Eigen::Vector3d> GeometryFunc::TriangulateTwoFrame(const Eigen::Matrix3d& Rcw1, const Eigen::Vector3d& tcw1,
+        const Eigen::Matrix3d& Rcw2, const Eigen::Vector3d& tcw2, const Eigen::Matrix3d& K,
+        const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
+        const std::vector<unsigned long>& vChainIds){
+
+    std::cout << "[Initializer::TriangulateTwoFrame] Start" << std::endl;
+    std::vector<Eigen::Vector3d> vPts3D(vPts2D1.size(), Eigen::Vector3d(0, 0, 0));
+    Eigen::Matrix<double, 3, 4> P1, P2;
+    P1.block<3, 3>(0, 0) = Rcw1;
+    P1.block<3, 1>(0, 3) = tcw1;
+    P1 = K * P1;
+    P2.block<3, 3>(0, 0) = Rcw2;
+    P2.block<3, 1>(0, 3) = tcw2;
+    P2 = K * P2;
+
+    int rej_z1 = 0;
+    int rej_z2 = 0;
+    int rej_err1 = 0;
+    int rej_err2 = 0;
+    for(int j = 0; j < vPts2D1.size(); j++){
+        Eigen::Vector2d pt1 = vPts2D1[j], pt2 = vPts2D2[j];
+        Eigen::Vector3d pt3DW = GeometryFunc::Triangulate(pt1, pt2, P1, P2);
+
+        auto pt3DC1 = Rcw1 * pt3DW + tcw1;
+        if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0){
+            rej_z1++;
+            continue;
+        }
+
+        auto pt3DC2 = Rcw2 * pt3DW + tcw2;
+        if(!finite(pt3DC2[0]) || !finite(pt3DC2[1]) || !finite(pt3DC2[2]) || pt3DC2[2] <= 0){
+            rej_z2++;
+            continue;
+        }
+
+        Eigen::Vector2d uv1 = GeometryFunc::project(pt3DC1, K);
+        auto err1 = uv1 - pt1;
+        auto err12 = err1.dot(err1);
+        if(err12 > 5.991){
+            rej_err1++;
+            continue;
+        }
+
+        Eigen::Vector2d uv2 = GeometryFunc::project(pt3DC2, K);
+        auto err2 = uv2 - pt2;
+        auto err22 = err2.dot(err2);
+        if(err22 > 5.991){
+            rej_err2++;
+            continue;
+        }
+
+        vPts3D[j] = pt3DW;
+        // mpFM->SetWorldPos(vChainIds[j], pt3DW);
+    }
+
+    std::cout << "[Initializer::TriangulateTwoFrame] Done" << std::endl;
+    return vPts3D;
+}
+
 } // namespace Naive_SLAM_ROS

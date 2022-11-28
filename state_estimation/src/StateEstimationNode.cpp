@@ -110,10 +110,6 @@ void StateEstimationNode::Run(){
             std::cout << "******************************************************* current frame id=" << i <<
                          " ********************************************************" << std::endl;
             i++;
-            // for(int i = 0; i < meas.second.size(); i++){
-            //     std::cout << meas.first.msTimestamp << "  " << meas.second[i].msTimestamp << std::endl;
-            // }
-            // std::cout << std::endl;
             if (i < 2) continue;
             std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
             mpEstimator->Estimate(meas);

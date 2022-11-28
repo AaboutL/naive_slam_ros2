@@ -58,8 +58,12 @@ void FeatureChain::EraseFront() {
 }
 
 void FeatureChain::EraseBack() {
-    if(mStartIdx + mvFeatures.size() == mWindowSize + 1){
+    if(mStartIdx + mvFeatures.size() == mWindowSize){
         auto last = mvFeatures.end() - 1;
+        mvFeatures.erase(last);
+    }
+    if(mStartIdx + mvFeatures.size() == mWindowSize + 1){
+        auto last = mvFeatures.end() - 2;
         mvFeatures.erase(last);
     }
 }
@@ -112,7 +116,7 @@ void FeatureManager::EraseFront() {
     auto iter = mmChains.begin();
     while(iter != mmChains.end()){
         iter->second.EraseFront();
-        if(iter->second.GetChainLen() == 0){
+        if(iter->second.GetChainLen() == 0 || iter->second.GetChainLen() == 1){
             mmChains.erase(iter++);
         }
         else{
@@ -122,10 +126,20 @@ void FeatureManager::EraseFront() {
 }
 
 void FeatureManager::EraseBack() {
-    for(auto& [chainId, chain] : mmChains){
-        chain.EraseBack();
-        if(chain.GetChainLen() == 0)
-            mmChains.erase(chainId);
+    // for(auto& [chainId, chain] : mmChains){
+    //     chain.EraseBack();
+    //     if(chain.GetChainLen() == 0 || chain.GetChainLen() == 1)
+    //         mmChains.erase(chainId);
+    // }
+    auto iter = mmChains.begin();
+    while(iter != mmChains.end()){
+        iter->second.EraseBack();
+        if(iter->second.GetChainLen() == 0 || iter->second.GetChainLen() == 1){
+            mmChains.erase(iter++);
+        }
+        else{
+            iter++;
+        }
     }
 }
 
@@ -204,7 +218,7 @@ void FeatureManager::UpdateWorldPos(unsigned long chainId, const Eigen::Vector3d
 
 void FeatureManager::UpdateWorldPos(const Eigen::Matrix3d& Rgw, const Eigen::Vector3d& tgw, double scale){
     for(auto& [cid, chain] : mmChains){
-        if(chain.bGood){
+        if(chain.mbGood){
             chain.mWorldPos = scale * Rgw * chain.mWorldPos + tgw;
         }
     }

@@ -46,6 +46,8 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
     Frame* pframe = new Frame(pc, mTbc);
     mvpFrames.emplace_back(pframe);
 
+    SelectMarginalizePosition();
+
     mFrameId++;
 
     Preintegrate(pframe, imus);
@@ -72,6 +74,7 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
         }
         if(mState == ESTIMATE){
             // TODO
+            SolveOdometry();
         }
         mpLastFrame = pframe;
         mvLastIMUs = imus;
@@ -139,24 +142,47 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     std::cout << "[StateEstimator::Preintegrate] Done" << std::endl;
 }
 
-void StateEstimator::Marginalize(int margPos){
-    std::cout << "mvpFrame size before marginalize = " << mvpFrames.size() << std::endl;
-    if((mState == INIT || margPos == 0) && mvpFrames.size() == mWindowSize + 1){
+void StateEstimator::Marginalize(){
+    std::cout << "[StateEstimator::Marginalize] mvpFrame size before marginalize = " << mvpFrames.size() << std::endl;
+    if((mState == INIT || mMargFlag == MARG_OLD) && mvpFrames.size() >= mWindowSize + 1){
+        std::cout << "[StateEstimator::Marginalize] marginalize old" << std::endl;
         auto* pFDel = mvpFrames.front();
         mvpFrames.erase(mvpFrames.begin());
         mpFM->EraseFront();
         delete pFDel;
         pFDel = nullptr;
+
+        // triangle matches between mWindowSize - 2 and mWindowSize - 1
+        std::vector<Eigen::Vector3d> vPts3D;
+        std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
+        std::vector<unsigned long> vChainIds;
+        int matchNum = mpFM->GetMatches(mWindowSize - 2, mWindowSize - 1, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
+        auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(mvpFrames[mWindowSize - 2]->mRcw, mvpFrames[mWindowSize - 2]->mtcw, 
+            mvpFrames[mWindowSize - 1]->mRcw, mvpFrames[mWindowSize - 1]->mtcw, mK, vPts1, vPts2, vChainIds);
+        for(int i = 0; i < vChainIds.size(); i++){
+            if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
+                mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
+            }
+        }
     }
-    if(margPos == mWindowSize && mvpFrames.size() == mWindowSize + 1){
-        auto* pFDel = mvpFrames.back();
-        mvpFrames.pop_back();
+    if(mMargFlag == MARG_SECOND_LASTEST && mvpFrames.size() >= mWindowSize + 1){
+        std::cout << "[StateEstimator::Marginalize] marginalize second new" << std::endl;
+        auto it = mvpFrames.end() - 2;
+        auto* pFDel = *it;
+        auto* pFNew = mvpFrames.back();
+
+        for(auto& imu : pFNew->mpPreintegrator->GetIMUs()){
+            pFDel->mpPreintegrator->Integrate(imu);
+        }
+        pFNew->mpPreintegrator = pFDel->mpPreintegrator;
+        pFDel->mpPreintegrator = nullptr;
+
+        mvpFrames.erase(it);
         mpFM->EraseBack();
         delete pFDel;
         pFDel = nullptr;
     }
-    std::cout << "mvpFrame size after marginalize = " << mvpFrames.size() << std::endl;
-
+    std::cout << "[StateEstimator::Marginalize] mvpFrame size after marginalize = " << mvpFrames.size() << std::endl;
 }
 
 void StateEstimator::Reset(){
@@ -208,6 +234,53 @@ bool StateEstimator::CheckIMUObservability(){
     }
     std::cout << "[StateEstimator::CheckIMUObservability] Done succeed!" << std::endl;
     return true;
+}
+
+void StateEstimator::SelectMarginalizePosition(){
+    std::vector<Eigen::Vector3d> vPts3D;
+    std::vector<Eigen::Vector2d> vPts2D1, vPts2D2;
+    std::vector<unsigned long> vChainIds;
+
+    std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
+
+    int matchNum = mpFM->GetMatches(mWindowSize - 1, mWindowSize, vPts2D1, vPts2D2, vChainIds);
+    if(matchNum < 20){
+        mMargFlag = MARG_OLD;
+        return;
+    }
+
+    cvPts2D1.resize(matchNum); 
+    cvPts2D2.resize(matchNum);
+    std::vector<float> parallaxs;
+    for(int i = 0; i < matchNum; i++){
+        Eigen::Vector2d chainOffset = vPts2D2[i] - vPts2D1[i];
+        float parallax = std::sqrt(chainOffset.dot(chainOffset));
+        parallaxs.push_back(parallax);
+        cvPts2D1[i] = cv::Vec2f(vPts2D1[i][0], vPts2D1[i][1]);
+        cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
+    }
+    std::sort(parallaxs.begin(), parallaxs.end());
+    if(parallaxs[matchNum / 2] > 10){
+        mMargFlag = MARG_OLD;
+        return;
+    }
+    mMargFlag = MARG_SECOND_LASTEST;
+}
+
+bool StateEstimator::SolveOdometry(){
+    std::vector<Eigen::Vector3d> vPts3D;
+    std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
+    std::vector<unsigned long> vChainIds;
+    int matchNum = mpFM->GetMatches(mWindowSize - 1, mWindowSize, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
+    if(vPts3D.size() < 10)
+        return false;
+
+    Eigen::Matrix3d Rcw2 = mvpFrames[mWindowSize - 1]->GetTcw().rotationMatrix(); // as initial guess for pnp
+    Eigen::Vector3d tcw2 = mvpFrames[mWindowSize - 1]->GetTcw().translation();
+    GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
+    mvpFrames[mWindowSize]->SetTcw(Rcw2, tcw2); // as initial value for pose optimization
+    mvpFrames[mWindowSize]->SetVelocity(Eigen::Vector3d(0, 0, 0));
+    Optimizer::VisualInertialOptimize(mvpFrames, mpFM, mK, (mMargFlag==MARG_SECOND_LASTEST));
 }
 
 } // namespace Naive_SLAM_ROS

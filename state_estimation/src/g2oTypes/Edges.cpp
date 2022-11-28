@@ -12,17 +12,17 @@ mJPba(pPreint->GetJPba()), mJPbg(pPreint->GetJPbg()), mpPreint(pPreint),
 mG(Eigen::Vector3d(0, 0, -9.81)), mdT(pPreint->GetDeltaT()){
     resize(6); // This edge has 8 vertices
     Matrix9d info = pPreint->GetCov().block<9, 9>(0, 0).inverse();
-    std::cout << "[EdgeInertial::EdgeInertial] Cov: " << std::endl << pPreint->GetCov().block<9, 9>(0, 0) << std::endl;
+    // std::cout << "[EdgeInertial::EdgeInertial] Cov: " << std::endl << pPreint->GetCov().block<9, 9>(0, 0) << std::endl;
     info = (info + info.transpose()) * 0.5; // make symmetrical matrix. Infomation matrix is a symmetrical matrix
     Eigen::SelfAdjointEigenSolver<Matrix9d> es(info);
     Vector9d eigs = es.eigenvalues();
-    std::cout << "[EdgeInertial::EdgeInertial] eigs: " << std::endl << eigs.transpose() << std::endl;
+    // std::cout << "[EdgeInertial::EdgeInertial] eigs: " << std::endl << eigs.transpose() << std::endl;
     for(int i = 0; i < 9; i++){
         if(eigs[i] < 1e-12)
             eigs[i] = 0;
     }
     info = es.eigenvectors() * eigs.asDiagonal() * es.eigenvectors().transpose();
-    std::cout << "[EdgeInertial::EdgeInertial] Info after: " << std::endl << info << std::endl;
+    // std::cout << "[EdgeInertial::EdgeInertial] Info after: " << std::endl << info << std::endl;
     setInformation(info);
 }
 
@@ -45,9 +45,10 @@ void EdgeInertial::computeError(){
     auto t1wb = VPose1->estimate().mTwb.translation();
     auto R2wb = VPose2->estimate().mTwb.so3();
     auto t2wb = VPose2->estimate().mTwb.translation();
+    std::cout << "[EdgeInertial::computeError] dR.transpose: " << std::endl << dR.transpose() << std::endl;
     Eigen::Vector3d er = (Sophus::SO3d(dR.transpose()) * R1wb.inverse() * R2wb).log();
-    Eigen::Vector3d ev = R1wb.matrix().transpose() * ((VV2->estimate() - VV1->estimate()) - mG * mdT) - dV;
-    Eigen::Vector3d ep = R1wb.matrix().transpose() * ((t2wb - t1wb - VV1->estimate() * mdT) - mG * mdT * mdT * 0.5) - dP;
+    Eigen::Vector3d ev = R1wb.matrix().transpose() * (VV2->estimate() - VV1->estimate() - mG * mdT) - dV;
+    Eigen::Vector3d ep = R1wb.matrix().transpose() * (t2wb - t1wb - VV1->estimate() * mdT - mG * mdT * mdT * 0.5) - dP;
 
     _error << er, ev, ep;
 }
@@ -77,6 +78,7 @@ void EdgeInertial::linearizeOplus(){
     auto R2bw = R2wb.inverse();
 
     Eigen::Matrix3d eR = dR.transpose() * (R1bw * R2wb).matrix();
+    std::cout << "[EdgeInertial::linearizeOplus] eR: " << std::endl << eR << std::endl;
     Eigen::Vector3d er = Sophus::SO3d(eR).log();
     Eigen::Matrix3d invJr = InverseRightJacobian(er);
 
@@ -135,17 +137,17 @@ mJPba(pPreint->GetJPba()), mJPbg(pPreint->GetJPbg()), mpPreint(pPreint),
 mGI(Eigen::Vector3d(0, 0, -9.81)), mdT(pPreint->GetDeltaT()){
     resize(8); // This edge has 8 vertices
     Matrix9d info = pPreint->GetCov().block<9, 9>(0, 0).inverse();
-    std::cout << "[EdgeInertialGS::EdgeInertialGS] Cov: " << std::endl << pPreint->GetCov().block<9, 9>(0, 0) << std::endl;
+    // std::cout << "[EdgeInertialGS::EdgeInertialGS] Cov: " << std::endl << pPreint->GetCov().block<9, 9>(0, 0) << std::endl;
     info = (info + info.transpose()) * 0.5; // make symmetrical matrix. Infomation matrix is a symmetrical matrix
     Eigen::SelfAdjointEigenSolver<Matrix9d> es(info);
     Vector9d eigs = es.eigenvalues();
-    std::cout << "[EdgeInertialGS::EdgeInertialGS] eigs: " << std::endl << eigs.transpose() << std::endl;
+    // std::cout << "[EdgeInertialGS::EdgeInertialGS] eigs: " << std::endl << eigs.transpose() << std::endl;
     for(int i = 0; i < 9; i++){
         if(eigs[i] < 1e-12)
             eigs[i] = 0;
     }
     info = es.eigenvectors() * eigs.asDiagonal() * es.eigenvectors().transpose();
-    std::cout << "[EdgeInertialGS::EdgeInertialGS] Info after: " << std::endl << info << std::endl;
+    // std::cout << "[EdgeInertialGS::EdgeInertialGS] Info after: " << std::endl << info << std::endl;
     setInformation(info);
 }
     
@@ -288,6 +290,15 @@ g2o::Vector2 EdgeMono::cam_project(const g2o::Vector3 &trans_xyz) const {
     return res;
 }
 
+void EdgeMono::computeError()
+{
+    const g2o::VertexPointXYZ *vPoint = static_cast<const g2o::VertexPointXYZ *>(_vertices[0]);
+    const VertexPose *vPose = static_cast<const VertexPose *>(_vertices[1]);
+    const Eigen::Vector2d obs(_measurement);
+    _error = obs - cam_project(vPose->estimate().mTcw * vPoint->estimate());
+    // std::cout << "_error: " << _error.transpose() << std::endl;
+}
+
 void EdgeMono::linearizeOplus(){
     auto* vPoint = static_cast<g2o::VertexPointXYZ*>(_vertices[0]);
     auto* vPose = static_cast<VertexPose*>(_vertices[1]);
@@ -300,12 +311,12 @@ void EdgeMono::linearizeOplus(){
 
     // jacobian of residual wrt Point in cam
     Eigen::Matrix<double, 2, 3> JProjPc;
-    JProjPc[0, 0] = fx / Pc[2];
-    JProjPc[0, 1] = 0;
-    JProjPc[0, 2] = -fx * Pc[0] / (Pc[2] * Pc[2]);
-    JProjPc[1, 0] = 0;
-    JProjPc[1, 1] = fy / Pc[2];
-    JProjPc[1, 2] = -fy * Pc[1] / (Pc[2] * Pc[2]);
+    JProjPc(0, 0) = fx / Pc[2];
+    JProjPc(0, 1) = 0;
+    JProjPc(0, 2) = -fx * Pc[0] / (Pc[2] * Pc[2]);
+    JProjPc(1, 0) = 0;
+    JProjPc(1, 1) = fy / Pc[2];
+    JProjPc(1, 2) = -fy * Pc[1] / (Pc[2] * Pc[2]);
 
     // jacobian of residual wrt Point in world
     _jacobianOplusXi = -JProjPc * Tcw.rotationMatrix();

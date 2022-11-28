@@ -33,11 +33,6 @@ public:
 
     bool VisualOnlyInitS2(std::vector<Frame*>& qFrames);
 
-    std::vector<Eigen::Vector3d> TriangulateTwoFrame(const Eigen::Matrix3d& Rcw1, const Eigen::Vector3d& tcw1,
-        const Eigen::Matrix3d& Rcw2, const Eigen::Vector3d& tcw2,
-        const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
-        const std::vector<unsigned long>& vChainIds);
-
     void NormalizePoseAndPoint(Frame* pF1, Frame* pF2, std::vector<Eigen::Vector3d>& vPts3D, 
         const std::vector<unsigned long>& vChainIds);
 

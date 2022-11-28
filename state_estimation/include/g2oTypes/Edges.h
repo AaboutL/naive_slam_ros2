@@ -149,13 +149,7 @@ public:
 
     g2o::Vector2 cam_project(const g2o::Vector3 &trans_xyz) const;
 
-    void computeError()
-    {
-        const g2o::VertexPointXYZ *vPoint = static_cast<const g2o::VertexPointXYZ *>(_vertices[0]);
-        const VertexPose *vPose = static_cast<const VertexPose *>(_vertices[1]);
-        const Eigen::Vector2d obs(_measurement);
-        _error = obs - cam_project(vPose->estimate().mTcw * vPoint->estimate());
-    }
+    void computeError();
 
     virtual void linearizeOplus();
 

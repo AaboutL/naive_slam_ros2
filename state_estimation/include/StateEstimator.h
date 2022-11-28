@@ -27,6 +27,11 @@ public:
         LOST = 3
     };
 
+    enum MargFlag{
+        MARG_OLD = 0,
+        MARG_SECOND_LASTEST = 1
+    };
+
     void Estimate(const std::pair<PointCloud, std::vector<IMU>>& pMeas);
 
     bool Initialize();
@@ -34,10 +39,13 @@ public:
                           cv::Mat &R10, cv::Mat &t10);
 
     void Preintegrate(Frame* frame, const std::vector<IMU>& vIMUs);
-    void Marginalize(int margPos=0);
+    void Marginalize();
     void Reset();
 
     bool CheckIMUObservability();
+    void SelectMarginalizePosition();
+
+    bool SolveOdometry();
 
 private:
     int mWindowSize;
@@ -65,6 +73,7 @@ private:
     Initializer* mpInitializer;
     Frame* mpLastFrame;
     std::vector<IMU> mvLastIMUs;
+    MargFlag mMargFlag;
 };
 
     

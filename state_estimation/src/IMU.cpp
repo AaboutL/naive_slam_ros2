@@ -66,7 +66,7 @@ mGyrBias(gyrBias), mAccBias(accBias){
 }
     
 void Preintegrator::Integrate(const IMU& imu){
-    std::cout << "[Preintegrator::Integrate] Start" << std::endl;
+    // std::cout << "[Preintegrator::Integrate] Start" << std::endl;
     mvIMUMeas.emplace_back(imu);
     double dt = imu.mdt;
     mdT += dt;
@@ -108,7 +108,7 @@ void Preintegrator::Integrate(const IMU& imu){
     IntegrateV(acc, dt);
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
-    std::cout << "[Preintegrator::Integrate] Done" << std::endl;
+    // std::cout << "[Preintegrator::Integrate] Done" << std::endl;
 }
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
@@ -127,7 +127,7 @@ void Preintegrator::IntegrateP(const Eigen::Vector3d& acc, double dt){
 }
 
 void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias){
-    std::cout << "[Preintegrator::ReIntegrate] Start" << std::endl;
+    // std::cout << "[Preintegrator::ReIntegrate] Start" << std::endl;
     mDeltaR.setIdentity();
     mDeltaV.setZero();
     mDeltaP.setZero();
@@ -148,7 +148,7 @@ void Preintegrator::ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vec
     for(const auto& imu : imus){
         Integrate(imu);
     }
-    std::cout << "[Preintegrator::ReIntegrate] Done" << std::endl;
+    // std::cout << "[Preintegrator::ReIntegrate] Done" << std::endl;
 }
 
 void Preintegrator::UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
@@ -216,6 +216,10 @@ Eigen::Vector3d Preintegrator::GetGyrBias() const{
 
 Eigen::Vector3d Preintegrator::GetAccBias() const{
     return mAccBias;
+}
+
+std::vector<IMU> Preintegrator::GetIMUs() const{
+    return mvIMUMeas;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

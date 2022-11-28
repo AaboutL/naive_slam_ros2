@@ -72,16 +72,21 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     cv::cv2eigen(cvt21, t21);
     vpFrames.back()->SetTcw(R21, t21);
 
-    vPts3D = TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
-        vpFrames.back()->mRcw, vpFrames.back()->mtcw, vPts2D1, vPts2D2, vChainIds);
+    auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
+        vpFrames.back()->mRcw, vpFrames.back()->mtcw, mK, vPts2D1, vPts2D2, vChainIds);
+    for(int i = 0; i < vChainIds.size(); i++){
+        if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
+            mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
+        }
+    }
 
     mInitIdx = matchFId;
 
-    Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames[matchFId], mpFM, vPts3D, vPts2D1, vPts2D2, vChainIds, mK);
+    Optimizer::VisualOnlyInitBA(vpFrames.front(), vpFrames[matchFId], mpFM, vPts3DNew, vPts2D1, vPts2D2, vChainIds, mK);
     std::cout << "[Initializer::VisualOnlyInitS1] Done succeed" << std::endl;
 
     // norm frame pose and 3D point
-    NormalizePoseAndPoint(vpFrames.front(), vpFrames[matchFId], vPts3D, vChainIds);
+    NormalizePoseAndPoint(vpFrames.front(), vpFrames[matchFId], vPts3DNew, vChainIds);
 
     return true;
 }
@@ -103,8 +108,13 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
         vpFrames[i]->SetTcw(Rcw2, tcw2);
 
-        TriangulateTwoFrame(vpFrames[0]->mRcw, vpFrames[0]->mtcw, 
-            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
+        auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(vpFrames[0]->mRcw, vpFrames[0]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, mK, vPts1, vPts2, vChainIds);
+        for(int i = 0; i < vChainIds.size(); i++){
+            if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
+                mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
+            }
+        }
     }
     std::cout << "[Initializer::VisualOnlyInitS2] Triangle between 0 and mInitIdx done" << std::endl;
 
@@ -122,8 +132,13 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         GeometryFunc::SolvePnP(vPts3D, vPts2D, mK, Rcw2, tcw2);
         vpFrames[i]->SetTcw(Rcw2, tcw2);
 
-        TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
-            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
+        auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, mK, vPts1, vPts2, vChainIds);
+        for(int i = 0; i < vChainIds.size(); i++){
+            if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
+                mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
+            }
+        }
     }
 
     std::cout << "[Initializer::VisualOnlyInitS2] Triangle between mInitIdx and last done" << std::endl;
@@ -135,8 +150,13 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         std::vector<unsigned long> vChainIds;
         int matchNum = mpFM->GetMatches(i - 1, i, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
 
-        TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
-            vpFrames[i]->mRcw, vpFrames[i]->mtcw, vPts1, vPts2, vChainIds);
+        auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(vpFrames[i - 1]->mRcw, vpFrames[i - 1]->mtcw, 
+            vpFrames[i]->mRcw, vpFrames[i]->mtcw, mK, vPts1, vPts2, vChainIds);
+        for(int i = 0; i < vChainIds.size(); i++){
+            if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
+                mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
+            }
+        }
     }
     std::cout << "[Initializer::VisualOnlyInitS2] Triangle left done" << std::endl;
 
@@ -145,64 +165,6 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
     return true;
 }
 
-std::vector<Eigen::Vector3d> Initializer::TriangulateTwoFrame(const Eigen::Matrix3d& Rcw1, const Eigen::Vector3d& tcw1,
-        const Eigen::Matrix3d& Rcw2, const Eigen::Vector3d& tcw2,
-        const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
-        const std::vector<unsigned long>& vChainIds){
-
-    std::cout << "[Initializer::TriangulateTwoFrame] Start" << std::endl;
-    std::vector<Eigen::Vector3d> vPts3D(vPts2D1.size(), Eigen::Vector3d(0, 0, 0));
-    Eigen::Matrix<double, 3, 4> P1, P2;
-    P1.block<3, 3>(0, 0) = Rcw1;
-    P1.block<3, 1>(0, 3) = tcw1;
-    P1 = mK * P1;
-    P2.block<3, 3>(0, 0) = Rcw2;
-    P2.block<3, 1>(0, 3) = tcw2;
-    P2 = mK * P2;
-
-    int rej_z1 = 0;
-    int rej_z2 = 0;
-    int rej_err1 = 0;
-    int rej_err2 = 0;
-    for(int j = 0; j < vPts2D1.size(); j++){
-        Eigen::Vector2d pt1 = vPts2D1[j], pt2 = vPts2D2[j];
-        Eigen::Vector3d pt3DW = GeometryFunc::Triangulate(pt1, pt2, P1, P2);
-
-        auto pt3DC1 = Rcw1 * pt3DW + tcw1;
-        if(!finite(pt3DC1[0]) || !finite(pt3DC1[1]) || !finite(pt3DC1[2]) || pt3DC1[2] <= 0){
-            rej_z1++;
-            continue;
-        }
-
-        auto pt3DC2 = Rcw2 * pt3DW + tcw2;
-        if(!finite(pt3DC2[0]) || !finite(pt3DC2[1]) || !finite(pt3DC2[2]) || pt3DC2[2] <= 0){
-            rej_z2++;
-            continue;
-        }
-
-        Eigen::Vector2d uv1 = GeometryFunc::project(pt3DC1, mK);
-        auto err1 = uv1 - pt1;
-        auto err12 = err1.dot(err1);
-        if(err12 > 5.991){
-            rej_err1++;
-            continue;
-        }
-
-        Eigen::Vector2d uv2 = GeometryFunc::project(pt3DC2, mK);
-        auto err2 = uv2 - pt2;
-        auto err22 = err2.dot(err2);
-        if(err22 > 5.991){
-            rej_err2++;
-            continue;
-        }
-
-        vPts3D[j] = pt3DW;
-        mpFM->SetWorldPos(vChainIds[j], pt3DW);
-    }
-
-    std::cout << "[Initializer::TriangulateTwoFrame] Done" << std::endl;
-    return vPts3D;
-}
 
 void Initializer::NormalizePoseAndPoint(Frame* pF1, Frame* pF2, std::vector<Eigen::Vector3d>& vPts3D,
                                         const std::vector<unsigned long>& vChainIds){
@@ -229,10 +191,9 @@ void Initializer::NormalizePoseAndPoint(Frame* pF1, Frame* pF2, std::vector<Eige
     // norm 3D points
     for(int i = 0; i < vPts3D.size(); i++){
         if(mpFM->IsChainPosSet(vChainIds[i])){
-            std::cout << "pt before norm: " << vPts3D[i].transpose();
             Eigen::Vector3d normedWorldPos = vPts3D[i] * invMedianDepth;
-            std::cout << "    pt after norm: " << normedWorldPos.transpose() << std::endl;;
             mpFM->UpdateWorldPos(vChainIds[i], normedWorldPos);   
+            std::cout << "normed pt3D=" << normedWorldPos.transpose() << std::endl;
         }
     }
     std::cout << "[Initializer::NormalizePoseAndPoint] Done" << std::endl;
@@ -250,11 +211,10 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
         dirG -= Rwbi * pCurF->mpPreintegrator->GetDeltaV();
         double dT = pCurF->mdTimestamp - pPreF->mdTimestamp;
         // Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
-        Eigen::Vector3d vel(0, 0, 0);
+        Eigen::Vector3d vel(0, 0, 0); // since vel can init to zeros, so we can use all frames in window to initialize.
         pPreF->SetVelocity(vel);
         std::cout << "[Initializer::VisualInertialInit] frame=" << i << "  Pose:" << std::endl;
         std::cout << pCurF->GetTcw().rotationMatrix() << std::endl << pCurF->GetTcw().translation().transpose() << std::endl;
-        std::cout << "[Initializer::VisualInertialInit] vel = " << vel.transpose() << std::endl;
     }
     dirG.normalize();
     Eigen::Vector3d gI(0, 0, -1);
@@ -275,6 +235,10 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
         std::cout << "[Initializer::VisualInertialInit] Done fail" << std::endl;
         return false;
     }
+    VisualInertialAlign(vpFrames, Rwg, GyrBias, AccBias, scale);
+
+    Optimizer::VisualInertialInitBA(vpFrames, mpFM, mK, GyrBias, AccBias, 1e5, 1e2);
+
     std::cout << "[Initializer::VisualInertialInit] Done Good" << std::endl;
     return true;
 }
@@ -283,8 +247,8 @@ void Initializer::VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen
                                       const Eigen::Vector3d& accBias, double scale){
     Sophus::SE3d Tgw(Rwg.transpose(), Eigen::Vector3d::Zero());
     Eigen::Matrix3d Rgw = Tgw.rotationMatrix();
-    Eigen::Matrix3d tgw = Tgw.translation();
-    for(int i = 0; i < vpFrames.size(); i++){
+    Eigen::Vector3d tgw = Tgw.translation();
+    for(int i = 0; i < vpFrames.size(); i++){ //  since vel can init to zeros, so we can use all frames in window to initialize.
         auto* pF = vpFrames[i];
         auto Twc = pF->GetTcw().inverse();
         Twc.translation() *= scale;
@@ -294,6 +258,8 @@ void Initializer::VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen
         auto vel = pF->GetVelocity();
         pF->SetVelocity(Rgw * vel * scale);
         pF->mpPreintegrator->ReIntegrate(gyrBias, accBias);
+        std::cout << "[Initializer::VisualInertialAlign] vel=" << pF->GetVelocity().transpose() << std::endl;
+        std::cout << "[Initializer::VisualInertialAlign] pos=" << pF->GetTcw().translation().transpose() << std::endl;
     }
 
     mpFM->UpdateWorldPos(Rgw, tgw, scale);

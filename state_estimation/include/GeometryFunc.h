@@ -31,6 +31,11 @@ public:
 
     static void SolvePnP(const std::vector<Eigen::Vector3d>& vPts3D, const std::vector<Eigen::Vector2d>& vPts2D,
         const Eigen::Matrix3d& K, Eigen::Matrix3d& R, Eigen::Vector3d& t);
+
+    static std::vector<Eigen::Vector3d> TriangulateTwoFrame(const Eigen::Matrix3d& Rcw1, const Eigen::Vector3d& tcw1,
+        const Eigen::Matrix3d& Rcw2, const Eigen::Vector3d& tcw2, const Eigen::Matrix3d& K,
+        const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
+        const std::vector<unsigned long>& vChainIds);
 };
     
 } // namespace Naive_SLAM_ROS
