@@ -1,3 +1,4 @@
 launch/test.log
 launch/debug.txt
 launch/__pycache__
+launch/*.log

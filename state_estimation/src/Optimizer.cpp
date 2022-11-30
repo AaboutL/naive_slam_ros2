@@ -469,9 +469,11 @@ int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManage
         auto* pF = vpFrames[i];
 
         VertexPose* vPose = new VertexPose(pF->GetTbc(), pF->GetTcw());
+        // VertexPose* vPose = new VertexPose(Sophus::SE3d(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero()), pF->GetTcw());
         vPose->setId(i);
         // vPose->setFixed(true);
-        vPose->setFixed(false);
+        // vPose->setFixed(false);
+        vPose->setFixed(i==0);
         optimizer.addVertex(vPose);
         vPoses.emplace_back(vPose);
 
@@ -583,7 +585,6 @@ int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManage
     optimizer.optimize(20);
 
     for(int i = 0; i < vpFrames.size(); i++){
-        std::cout <<"setTcw: " << std::endl << vPoses[i]->estimate().mTcw.rotationMatrix() << std::endl;
         vpFrames[i]->SetTcw(vPoses[i]->estimate().mTcw);
         vpFrames[i]->SetVelocity(vVels[i]->estimate());
         vpFrames[i]->mpPreintegrator->ReIntegrate(vGB->estimate(), vAB->estimate());
@@ -710,7 +711,6 @@ int Optimizer::VisualInertialOptimize(std::vector<Frame*>& vpFrames, FeatureMana
             continue;
         used_chain++;
         auto *vPoint = new g2o::VertexPointXYZ();
-        std::cout << "good chain world pos: " << chain.mWorldPos.transpose() << std::endl;
         vPoint->setEstimate(chain.mWorldPos);
         vPoint->setId(vertexIdx);
         vPoint->setFixed(bNotKeyFrame);
@@ -757,7 +757,6 @@ int Optimizer::VisualInertialOptimize(std::vector<Frame*>& vpFrames, FeatureMana
 
     // update pose, vel, bias
     for(int i = 0; i < usedFrameNum; i++){
-        std::cout << "[optimize] SetTcw: " << std::endl << vPoses[i]->estimate().mTcw.rotationMatrix() << std::endl;
         vpFrames[i]->SetTcw(vPoses[i]->estimate().mTcw);
         vpFrames[i]->SetVelocity(vVels[i]->estimate());
         if(!bNotKeyFrame)

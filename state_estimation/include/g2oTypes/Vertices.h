@@ -16,6 +16,7 @@
 #include <g2o/core/base_vertex.h>
 
 #include "LieAlgebra.h"
+#include "IMU.h"
 
 namespace Naive_SLAM_ROS
 {
@@ -33,6 +34,7 @@ public:
     Sophus::SE3d mTbc;
     Sophus::SE3d mTcw;
     Sophus::SE3d mTwb;
+    int its;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

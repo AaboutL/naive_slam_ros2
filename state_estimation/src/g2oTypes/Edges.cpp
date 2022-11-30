@@ -45,7 +45,6 @@ void EdgeInertial::computeError(){
     auto t1wb = VPose1->estimate().mTwb.translation();
     auto R2wb = VPose2->estimate().mTwb.so3();
     auto t2wb = VPose2->estimate().mTwb.translation();
-    std::cout << "[EdgeInertial::computeError] dR.transpose: " << std::endl << dR.transpose() << std::endl;
     Eigen::Vector3d er = (Sophus::SO3d(dR.transpose()) * R1wb.inverse() * R2wb).log();
     Eigen::Vector3d ev = R1wb.matrix().transpose() * (VV2->estimate() - VV1->estimate() - mG * mdT) - dV;
     Eigen::Vector3d ep = R1wb.matrix().transpose() * (t2wb - t1wb - VV1->estimate() * mdT - mG * mdT * mdT * 0.5) - dP;
@@ -78,7 +77,6 @@ void EdgeInertial::linearizeOplus(){
     auto R2bw = R2wb.inverse();
 
     Eigen::Matrix3d eR = dR.transpose() * (R1bw * R2wb).matrix();
-    std::cout << "[EdgeInertial::linearizeOplus] eR: " << std::endl << eR << std::endl;
     Eigen::Vector3d er = Sophus::SO3d(eR).log();
     Eigen::Matrix3d invJr = InverseRightJacobian(er);
 

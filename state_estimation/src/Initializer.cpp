@@ -162,6 +162,7 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
 
     int goodChainNum = Optimizer::VisualOnlyBA(vpFrames, mpFM, mK);
     std::cout << "[Initializer::VisualOnlyInitS2] Done succeed" << std::endl;
+    exit(0);
     return true;
 }
 
@@ -213,8 +214,8 @@ bool Initializer::VisualInertialInit(std::vector<Frame*>& vpFrames){
         // Eigen::Vector3d vel = (pCurF->GetBodyPosition() - pPreF->GetBodyPosition()) / dT;
         Eigen::Vector3d vel(0, 0, 0); // since vel can init to zeros, so we can use all frames in window to initialize.
         pPreF->SetVelocity(vel);
-        std::cout << "[Initializer::VisualInertialInit] frame=" << i << "  Pose:" << std::endl;
-        std::cout << pCurF->GetTcw().rotationMatrix() << std::endl << pCurF->GetTcw().translation().transpose() << std::endl;
+        // std::cout << "[Initializer::VisualInertialInit] frame=" << i << "  Pose:" << std::endl;
+        // std::cout << pCurF->GetTcw().rotationMatrix() << std::endl << pCurF->GetTcw().translation().transpose() << std::endl;
     }
     dirG.normalize();
     Eigen::Vector3d gI(0, 0, -1);
