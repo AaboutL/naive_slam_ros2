@@ -21,11 +21,23 @@ public:
                std::vector<cv::Point2f>& vPtUnOffsets,
                std::vector<int>& vChainLens);
 
+    void TrackHarris(const cv::Mat& img, std::vector<unsigned long>& vChainIds,
+               std::vector<cv::Point2f>& vPtsUn, std::vector<cv::Point2f>& vPts,
+               std::vector<cv::Point2f>& vPtUnOffsets,
+               std::vector<int>& vChainLens);
+
     cv::Mat DrawMatches(const std::string& winName="");
+    cv::Mat DrawTrack(const std::string& winName="");
 
 private:
     void FindMatches();
+    void FindMatchesHarris();
+
     void RejectByFundamental();
+    void RejectByFundamentalHarris();
+    void ReduceVector(std::vector<cv::Point2f>& v, std::vector<uchar>& status);
+    void ReduceVector(std::vector<int>& v, std::vector<uchar>& status);
+    void ReduceVector(std::vector<size_t>& v, std::vector<uchar>& status);
 
 private:
     bool bFirst;
@@ -45,6 +57,8 @@ private:
     ImageData mPrevImageData;
 
     std::shared_ptr<ORBextractor> mpORBextractor;
+
+    int mnFeatureNum;
 };
 }
 

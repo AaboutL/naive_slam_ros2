@@ -76,7 +76,7 @@ std::vector<Eigen::Vector3d> GeometryFunc::TriangulateTwoFrame(const Eigen::Matr
         const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
         const std::vector<unsigned long>& vChainIds){
 
-    std::cout << "[Initializer::TriangulateTwoFrame] Start" << std::endl;
+    std::cout << "[GeometryFunc::TriangulateTwoFrame] Start" << std::endl;
     std::vector<Eigen::Vector3d> vPts3D(vPts2D1.size(), Eigen::Vector3d(0, 0, 0));
     Eigen::Matrix<double, 3, 4> P1, P2;
     P1.block<3, 3>(0, 0) = Rcw1;
@@ -126,8 +126,25 @@ std::vector<Eigen::Vector3d> GeometryFunc::TriangulateTwoFrame(const Eigen::Matr
         // mpFM->SetWorldPos(vChainIds[j], pt3DW);
     }
 
-    std::cout << "[Initializer::TriangulateTwoFrame] Done" << std::endl;
+    std::cout << "[GeometryFunc::TriangulateTwoFrame] Done" << std::endl;
     return vPts3D;
+}
+
+
+Eigen::Vector3d GeometryFunc::R2ypr(const Eigen::Matrix3d& R){
+    Eigen::Vector3d n = R.col(0);
+    Eigen::Vector3d o = R.col(1);
+    Eigen::Vector3d a = R.col(2);
+
+    Eigen::Vector3d ypr(3);
+    double y = atan2(n(1), n(0));
+    double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+    double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
+    ypr(0) = y;
+    ypr(1) = p;
+    ypr(2) = r;
+
+    return ypr / M_PI * 180.0;
 }
 
 } // namespace Naive_SLAM_ROS

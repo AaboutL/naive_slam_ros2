@@ -8,16 +8,12 @@
 #include <opencv2/opencv.hpp>
 
 namespace Naive_SLAM_ROS{
-
-    void PrintCvMat(const std::string& msg, const cv::Mat& mat){
-        std::cout << msg << std::endl;
-        for(int i = 0; i < mat.rows; i++){
-            for(int j = 0; j < mat.cols; j++){
-                std::cout << mat.at<float>(i, j) << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
+class Utils{
+public:
+    static void PrintCvMat(const std::string& msg, const cv::Mat& mat);
+    // static void WriteFile(const std::string& ts1, const std::string& ts2,
+    //                       const std::vector<cv::Point2)
+};
     
 } // namespace Naive_SLAM_ROS
 

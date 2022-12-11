@@ -98,6 +98,7 @@ std::vector<std::pair<PointCloud, std::vector<IMU>>> StateEstimationNode::BindIm
 
 void StateEstimationNode::Run(){
     int i= 0;
+    std::vector<IMU> tmp;
     while(true){
         std::vector<std::pair<PointCloud, std::vector<IMU>>> vMeasurements;
         std::unique_lock<std::mutex> ulk(mMutexBuffer);
@@ -107,13 +108,21 @@ void StateEstimationNode::Run(){
         });
         ulk.unlock();
         for(auto & meas : vMeasurements){
-            std::cout << "******************************************************* current frame id=" << i <<
-                         " ********************************************************" << std::endl;
+            std::cout << "********************************************* current frame id=" << i <<
+                         "  timestamp: " << meas.first.msTimestamp << 
+                         " ***********************************************" << std::endl;
             i++;
-            if (i < 2) continue;
-            std::cout  << "vMeas size = " << vMeasurements.size() << std::endl;
+            tmp.insert(tmp.end(), meas.second.begin(), meas.second.end()-1);
+            if (i < 4) 
+            {
+                continue;
+            }
+            if(i == 4){
+                tmp.emplace_back(meas.second.back());
+                meas.second = tmp;
+            }
+            std::cout  << "imu num= " << meas.second.size() << std::endl;
             mpEstimator->Estimate(meas);
-            std::cout << "*****************************[StateEstimationNode::Run] mpEstimator->Estimate() done***************************************" << std::endl;
         }
     }
 }

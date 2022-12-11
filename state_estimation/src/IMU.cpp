@@ -28,6 +28,7 @@ mGyrBias(gyrBias), mAccBias(accBias){
     mDeltaV.setZero();
     mDeltaP.setZero();
     mCov.setZero();
+    mJacobian.setIdentity();
     mJRbg.setZero();
     mJVba.setZero();
     mJVbg.setZero();
@@ -47,6 +48,7 @@ mGyrBias(gyrBias), mAccBias(accBias){
     mDeltaV.setZero();
     mDeltaP.setZero();
     mCov.setZero();
+    mJacobian.setIdentity();
     mJRbg.setZero();
     mJVba.setZero();
     mJVbg.setZero();
@@ -65,6 +67,7 @@ mGyrBias(gyrBias), mAccBias(accBias){
     std::cout << "[Preintegrator::Preintegrator] Done" << std::endl;
 }
     
+
 void Preintegrator::Integrate(const IMU& imu){
     // std::cout << "[Preintegrator::Integrate] Start" << std::endl;
     mvIMUMeas.emplace_back(imu);
@@ -76,9 +79,10 @@ void Preintegrator::Integrate(const IMU& imu){
     acc = imu.mAcc - mAccBias;
     Eigen::Matrix3d acc_hat = Sophus::SO3d::hat(acc);
 
-    // Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
-    Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
-    Eigen::Matrix3d rightJ = RightJacobian(gyr * dt);
+    // Eigen::Matrix3d deltaR = LieAlg::Exp(gyr * dt);
+    // Eigen::Matrix3d rightJ = RightJacobian(gyr * dt);
+    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
+    Eigen::Matrix3d rightJ = Sophus::SO3d::leftJacobian(-gyr * dt);
 
     Eigen::Matrix<double, 9, 9> A;
     A.setIdentity();
@@ -94,10 +98,58 @@ void Preintegrator::Integrate(const IMU& imu){
     B.block<3, 3>(6, 3) = 0.5 * mDeltaR * dt * dt;
     mCov.block<9, 9>(0, 0) = A * mCov.block<9, 9>(0, 0) * A.transpose() + B * mGyrAccNoise * B.transpose();
     mCov.block<6, 6>(9, 9) += mGyrAccBiasWalk;
+    mJacobian = A * mJacobian;
     // std::cout << std::endl << "A: ********************************************************" << std::endl << A << std::endl;
     // std::cout << std::endl << "B: ********************************************************" << std::endl << B << std::endl;
     // std::cout << std::endl << "IMU Cov:***************************************************" << std::endl << mCov.block<9, 9>(0, 0) << std::endl;
 
+    // std::cout << "deltaR: " << std::endl << deltaR << std::endl;
+    // std::cout << "before JRg: " << std::endl << mJRbg << std::endl;
+
+    mJPba = mJPba + mJVba * dt - 0.5 * mDeltaR * dt * dt;
+    mJPbg = mJPbg + mJVbg * dt - 0.5 * mDeltaR * acc_hat * mJRbg * dt * dt;
+    mJVba = mJVba - mDeltaR * dt;
+    mJVbg = mJVbg - mDeltaR * acc_hat * mJRbg * dt;
+    mJRbg = deltaR.transpose() * mJRbg - rightJ * dt;
+    // std::cout << "after JRg: " << std::endl << mJRbg << std::endl;
+
+    IntegrateP(acc, dt);
+    IntegrateV(acc, dt);
+    mDeltaR *= deltaR;
+    mDeltaR = NormalizeRotation(mDeltaR);
+    // std::cout << "[Preintegrator::Integrate] Done" << std::endl;
+}
+/*
+void Preintegrator::Integrate1(const IMU& imu0, const IMU& imu1){
+    double dt = imu1.mdt - imu0.mdt;
+    mdT += dt;
+
+    Eigen::Vector3d _gyr_0, _acc_0, _gyr_1, _acc_1;
+    _gyr_0 = imu0.mGyr;
+    _acc_0 = imu0.mAcc;
+    _gyr_1 = imu1.mGyr;
+    _acc_1 = imu1.mAcc;
+
+    Eigen::Matrix3d acc_hat = Sophus::SO3d::hat(acc);
+
+    Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();
+    Eigen::Matrix3d rightJ = Sophus::SO3d::leftJacobian(-gyr * dt);
+
+    Eigen::Matrix<double, 9, 9> A;
+    A.setIdentity();
+    Eigen::Matrix<double, 9, 6> B;
+    B.setZero();
+
+    A.block<3, 3>(0, 0) = deltaR.transpose();
+    A.block<3, 3>(3, 0) = -mDeltaR * acc_hat * dt;
+    A.block<3, 3>(6, 0) = -0.5 * mDeltaR * acc_hat * dt * dt;
+    A.block<3, 3>(6, 3) = Eigen::DiagonalMatrix<double, 3>(dt, dt, dt);
+    B.block<3, 3>(0, 0) = rightJ * dt;
+    B.block<3, 3>(3, 3) = mDeltaR * dt;
+    B.block<3, 3>(6, 3) = 0.5 * mDeltaR * dt * dt;
+    mCov.block<9, 9>(0, 0) = A * mCov.block<9, 9>(0, 0) * A.transpose() + B * mGyrAccNoise * B.transpose();
+    mCov.block<6, 6>(9, 9) += mGyrAccBiasWalk;
+    mJacobian = A * mJacobian;
     mJPba = mJPba + mJVba * dt - 0.5 * mDeltaR * dt * dt;
     mJPbg = mJPbg + mJVbg * dt - 0.5 * mDeltaR * acc_hat * mJRbg * dt * dt;
     mJVba = mJVba - mDeltaR * dt;
@@ -108,8 +160,7 @@ void Preintegrator::Integrate(const IMU& imu){
     IntegrateV(acc, dt);
     mDeltaR *= deltaR;
     mDeltaR = NormalizeRotation(mDeltaR);
-    // std::cout << "[Preintegrator::Integrate] Done" << std::endl;
-}
+}*/
 
 void Preintegrator::IntegrateR(const Eigen::Vector3d& gyr, double dt){
     // Eigen::Matrix3d deltaR = Sophus::SO3d::exp(gyr * dt).matrix();

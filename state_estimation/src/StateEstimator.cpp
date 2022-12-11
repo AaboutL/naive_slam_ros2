@@ -7,7 +7,7 @@
 namespace Naive_SLAM_ROS{
 
 StateEstimator::StateEstimator(const std::string& strParamFile):
-mFrameId(0), mState(INIT){
+mFrameId(0), mState(WAIT){
     cv::FileStorage fs(strParamFile.c_str(), cv::FileStorage::READ);
     if (!fs.isOpened()) {
         std::cout << "[Estimator] Param file not exist..." << std::endl;
@@ -46,26 +46,59 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
     Frame* pframe = new Frame(pc, mTbc);
     mvpFrames.emplace_back(pframe);
 
-    SelectMarginalizePosition();
-
     mFrameId++;
 
     Preintegrate(pframe, imus);
-    if(mvpFrames.size() == 1){// first frame
+    if(mvpFrames.size() <= 2){// first frame
         mpLastFrame = pframe;
         mvLastIMUs = imus;
         return;
     } 
     else{
         // +1 is for IMU initialization. once init is done, then Marginalize one frame(front or back)
-        if(mState == INIT && mvpFrames.size() == mWindowSize + 1){
+        if(mState == WAIT){
+            // int flag = IsInitKeyframe();
+            int flag = 1;
+            if(flag == -1){
+                Reset();
+                return;
+            }
+            else if(flag == 0){
+                mMargFlag = MARG_SECOND_LASTEST;
+            }
+            else{
+                mMargFlag = SLEEP;
+            }
+            Marginalize();
+            if(mMargFlag == SLEEP && mvpFrames.size() == mWindowSize + 1){
+                mState = INIT;
+            }
+        }
+        if(mState == INIT){
             if(!CheckIMUObservability()){
                 Reset();
                 return;
             }
-            int flag = Initialize();
+            int len2=0, len3 = 0, len4 = 0, len5=0;
+            for(auto& [id, chain] : mpFM->GetChains()){
+                int cl = chain.GetChainLen();
+                if(cl == 2) len2++;
+                if(cl == 3) len3++;
+                if(cl == 4) len4++;
+                if(cl >= 5) len5++;
+            }
+            std::cout << "chain num=" << mpFM->GetChains().size() << "  len2=" << len2
+                      << "  len3=" << len3 << "  len4=" << len4 << "  len5=" << len5 << std::endl;
+
+            bool flag = Initialize();
             if(flag){
                 mState = ESTIMATE;
+                mMargFlag == MARG_OLD;
+                Marginalize();
+                mpLastFrame = pframe;
+                mvLastIMUs = imus;
+                exit(0);
+                return;
             }
             else{
                 Reset();
@@ -73,14 +106,13 @@ void StateEstimator::Estimate(const std::pair<PointCloud, std::vector<IMU>>& mea
             }
         }
         if(mState == ESTIMATE){
-            // TODO
+            SelectMarginalizePosition();
             SolveOdometry();
+            Marginalize();
+            mpLastFrame = pframe;
+            mvLastIMUs = imus;
         }
-        mpLastFrame = pframe;
-        mvLastIMUs = imus;
 
-        // TODO: marginalization
-        Marginalize();
     }
 }
 
@@ -94,7 +126,8 @@ bool StateEstimator::Initialize(){
     if(!bS2){
         return false;
     }
-    bool bVI = mpInitializer->VisualInertialInit(mvpFrames);
+    // bool bVI = mpInitializer->VisualInertialInit(mvpFrames);
+    bool bVI = mpInitializer->VIAlign(mvpFrames);
     if(!bVI){
         return false;
     } 
@@ -112,39 +145,53 @@ void StateEstimator::Preintegrate(Frame* pFrame, const std::vector<IMU>& vIMUs){
     Preintegrator *preintegrator = new Preintegrator(GyrN, AccN, 
         GyrBiasW, AccBiasW, mLastGyrBias, mLastAccBias);
 
-    for(int i = 0; i < vIMUs.size(); i++){
+    for(int i = 0; i < vIMUs.size()-1; i++){
         auto imu = vIMUs[i];
-        if(i == 0){
-            if(mvLastIMUs.empty())
-                continue;
-            auto lastImu = *(mvLastIMUs.end() - 2);
-            double dt = imu.mdTimestamp - lastImu.mdTimestamp;
-            double dtPre = mpLastFrame->mdTimestamp - lastImu.mdTimestamp;
-            Eigen::Vector3d midAcc = (lastImu.mAcc + (imu.mAcc - lastImu.mAcc) / dt * dtPre + imu.mAcc) * 0.5;
-            Eigen::Vector3d midGyr = (lastImu.mGyr + (imu.mGyr - lastImu.mGyr) / dt * dtPre + imu.mGyr) * 0.5;
-            preintegrator->Integrate(IMU(-1, midAcc, midGyr, (dt - dtPre)));
-        }
-        else if(i > 0 && i < vIMUs.size() - 1){
-            double dt = imu.mdTimestamp - vIMUs[i-1].mdTimestamp;
-            Eigen::Vector3d midAcc = (vIMUs[i-1].mAcc + imu.mAcc) * 0.5;
-            Eigen::Vector3d midGyr = (vIMUs[i-1].mGyr + imu.mGyr) * 0.5;
+        std::cout << "imu: acc: " << imu.mAcc.transpose() << "  gyr: " << imu.mGyr.transpose() << std::endl;
+        // if(i == 0){
+        //     if(mvLastIMUs.empty())
+        //         continue;
+        //     auto lastImu = *(mvLastIMUs.end() - 2);
+        //     double dt = imu.mdTimestamp - lastImu.mdTimestamp;
+        //     double dtPre = mpLastFrame->mdTimestamp - lastImu.mdTimestamp;
+        //     Eigen::Vector3d midAcc = (lastImu.mAcc + (imu.mAcc - lastImu.mAcc) / dt * dtPre + imu.mAcc) * 0.5;
+        //     Eigen::Vector3d midGyr = (lastImu.mGyr + (imu.mGyr - lastImu.mGyr) / dt * dtPre + imu.mGyr) * 0.5;
+        //     preintegrator->Integrate(IMU(-1, midAcc, midGyr, (dt - dtPre)));
+        // }
+        // else if(i > 0 && i < vIMUs.size() - 1){
+        //     double dt = imu.mdTimestamp - vIMUs[i-1].mdTimestamp;
+        //     Eigen::Vector3d midAcc = (vIMUs[i-1].mAcc + imu.mAcc) * 0.5;
+        //     Eigen::Vector3d midGyr = (vIMUs[i-1].mGyr + imu.mGyr) * 0.5;
+        //     preintegrator->Integrate(IMU(-1, midAcc, midGyr, dt));
+        // }
+        // else{
+        //     double dtPre = pFrame->mdTimestamp - vIMUs[i - 1].mdTimestamp;
+        //     double dt = imu.mdTimestamp - vIMUs[i-1].mdTimestamp;
+        //     Eigen::Vector3d midAcc = (vIMUs[i-1].mAcc + vIMUs[i-1].mAcc + (imu.mAcc - vIMUs[i-1].mAcc) / dt * dtPre) * 0.5;
+        //     Eigen::Vector3d midGyr = (vIMUs[i-1].mGyr + vIMUs[i-1].mGyr + (imu.mGyr - vIMUs[i-1].mGyr) / dt * dtPre) * 0.5;
+        //     preintegrator->Integrate(IMU(-1, midAcc, midGyr, dtPre));
+        // }
+        if(i < vIMUs.size() -1){
+            double dt = imu.mdTimestamp - vIMUs[i+1].mdTimestamp;
+            Eigen::Vector3d midAcc = (vIMUs[i+1].mAcc + imu.mAcc) * 0.5;
+            Eigen::Vector3d midGyr = (vIMUs[i+1].mGyr + imu.mGyr) * 0.5;
             preintegrator->Integrate(IMU(-1, midAcc, midGyr, dt));
         }
         else{
-            double dtPre = pFrame->mdTimestamp - vIMUs[i - 1].mdTimestamp;
-            double dt = imu.mdTimestamp - vIMUs[i-1].mdTimestamp;
-            Eigen::Vector3d midAcc = (vIMUs[i-1].mAcc + vIMUs[i-1].mAcc + (imu.mAcc - vIMUs[i-1].mAcc) / dt * dtPre) * 0.5;
-            Eigen::Vector3d midGyr = (vIMUs[i-1].mGyr + vIMUs[i-1].mGyr + (imu.mGyr - vIMUs[i-1].mGyr) / dt * dtPre) * 0.5;
-            preintegrator->Integrate(IMU(-1, midAcc, midGyr, dtPre));
+            double dt = imu.mdTimestamp - vIMUs[i+1].mdTimestamp;
+            preintegrator->Integrate(IMU(-1, imu.mAcc, imu.mGyr, dt));
         }
     }
+    std::cout << "dR: " << std::endl << preintegrator->GetDeltaR() << std::endl;
+    std::cout << "JRg: " << std::endl << preintegrator->GetJRbg() << std::endl;
     pFrame->SetPreintegrator(preintegrator);
     std::cout << "[StateEstimator::Preintegrate] Done" << std::endl;
 }
 
 void StateEstimator::Marginalize(){
     std::cout << "[StateEstimator::Marginalize] mvpFrame size before marginalize = " << mvpFrames.size() << std::endl;
-    if((mState == INIT || mMargFlag == MARG_OLD) && mvpFrames.size() >= mWindowSize + 1){
+    // if((mState == INIT || mMargFlag == MARG_OLD) && mvpFrames.size() >= mWindowSize + 1){
+    if(mMargFlag == MARG_OLD){
         std::cout << "[StateEstimator::Marginalize] marginalize old" << std::endl;
         auto* pFDel = mvpFrames.front();
         mvpFrames.erase(mvpFrames.begin());
@@ -165,7 +212,8 @@ void StateEstimator::Marginalize(){
             }
         }
     }
-    if(mMargFlag == MARG_SECOND_LASTEST && mvpFrames.size() >= mWindowSize + 1){
+    // if(mMargFlag == MARG_SECOND_LASTEST && mvpFrames.size() >= mWindowSize + 1){
+    if(mMargFlag == MARG_SECOND_LASTEST){
         std::cout << "[StateEstimator::Marginalize] marginalize second new" << std::endl;
         auto it = mvpFrames.end() - 2;
         auto* pFDel = *it;
@@ -178,7 +226,7 @@ void StateEstimator::Marginalize(){
         pFDel->mpPreintegrator = nullptr;
 
         mvpFrames.erase(it);
-        mpFM->EraseBack();
+        mpFM->EraseBack(mvpFrames.size());
         delete pFDel;
         pFDel = nullptr;
     }
@@ -190,7 +238,7 @@ void StateEstimator::Reset(){
     std::cout << "                                             [StateEstimator::Reset]                                                  "<< std::endl;
     std::cout << "**********************************************************************************************************************"<< std::endl;
     mFrameId = 0;
-    mState = INIT;
+    mState = WAIT;
     mpFM->Reset();
 
     std::cout << "[StateEstimator::Reset] before mvpFrame size=" << mvpFrames.size() << std::endl;
@@ -228,6 +276,7 @@ bool StateEstimator::CheckIMUObservability(){
         var += (vAcc[i] - avg_acc).dot(vAcc[i] - avg_acc);
     }
     var = sqrt(var / (mvpFrames.size() - 1));
+    std::cout << "acc var = " << var << std::endl;
     if(var < 0.25){
         std::cout << "[StateEstimator::CheckIMUObservability] Done failed!" << std::endl;
         return false;
@@ -243,7 +292,8 @@ void StateEstimator::SelectMarginalizePosition(){
 
     std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
 
-    int matchNum = mpFM->GetMatches(mWindowSize - 1, mWindowSize, vPts2D1, vPts2D2, vChainIds);
+    // int matchNum = mpFM->GetMatches(mWindowSize - 1, mWindowSize, vPts2D1, vPts2D2, vChainIds);
+    int matchNum = mpFM->GetMatches(mvpFrames.size() - 3, mvpFrames.size() - 2, vPts2D1, vPts2D2, vChainIds);
     if(matchNum < 20){
         mMargFlag = MARG_OLD;
         return;
@@ -265,6 +315,37 @@ void StateEstimator::SelectMarginalizePosition(){
         return;
     }
     mMargFlag = MARG_SECOND_LASTEST;
+}
+
+int StateEstimator::IsInitKeyframe(){
+    std::vector<Eigen::Vector3d> vPts3D;
+    std::vector<Eigen::Vector2d> vPts2D1, vPts2D2;
+    std::vector<unsigned long> vChainIds;
+    std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
+
+    int matchNum = mpFM->GetMatches(mvpFrames.size() - 3, mvpFrames.size() - 2, vPts2D1, vPts2D2, vChainIds);
+
+    cvPts2D1.resize(matchNum); 
+    cvPts2D2.resize(matchNum);
+    std::vector<float> parallaxs;
+    for(int i = 0; i < matchNum; i++){
+        Eigen::Vector2d chainOffset = vPts2D2[i] - vPts2D1[i];
+        float parallax = std::sqrt(chainOffset.dot(chainOffset));
+        parallaxs.push_back(parallax);
+        cvPts2D1[i] = cv::Vec2f(vPts2D1[i][0], vPts2D1[i][1]);
+        cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
+    }
+    std::sort(parallaxs.begin(), parallaxs.end());
+    std::cout <<"[StateEstimator::IsInitKeyframe] match num = " << matchNum << "  parallax=" << parallaxs[matchNum / 2] << std::endl;
+    // if(matchNum > 60 && parallaxs[matchNum / 2] > 10){
+    if(matchNum < 40){
+        return -1; // failed
+    }
+    if(parallaxs[matchNum / 2] > 10){
+        return 1; // kf
+    }
+    return 0;
+    // return 1;
 }
 
 bool StateEstimator::SolveOdometry(){

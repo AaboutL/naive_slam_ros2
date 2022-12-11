@@ -40,6 +40,12 @@ public:
     void VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen::Matrix3d& Rwg,
                              const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias, double scale);
 
+    void SolveGyrBias(std::vector<Frame*>& vpFrames);
+    bool LinearAlignment(std::vector<Frame*>& vpFrames, Eigen::Vector3d& g, Eigen::VectorXd& x);
+    Eigen::MatrixXd TangentBasis(const Eigen::Vector3d &g0);
+    void RefineGravity(std::vector<Frame*>& vpFrames, Eigen::Vector3d& g, Eigen::VectorXd& x);
+    bool VIAlign(std::vector<Frame*>& vpFrames);
+
 private:
     int mMatchNumTh;
     float mParallaxTh;
@@ -49,6 +55,8 @@ private:
 
     Sophus::SE3d mTbc;
     Sophus::SE3d mTcb;
+
+    Eigen::Vector3d mG;
 
 };
     

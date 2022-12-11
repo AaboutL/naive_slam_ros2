@@ -56,13 +56,16 @@ public:
 
     Eigen::Vector3d GetBodyPosition() const;
     Sophus::SE3d GetTbc() const;
+    Sophus::SE3d GetTcb() const;
     Sophus::SE3d GetTcw() const;
+    Sophus::SE3d GetTwc() const;
     Eigen::Vector3d GetVelocity() const;
     Eigen::Vector3d GetGyrBias() const;
     Eigen::Vector3d GetAccBias() const;
 
 public:
     double mdTimestamp;
+    std::string msTimestamp;
     std::vector<unsigned long> mvChainIds;
     std::vector<Eigen::Vector2d> mvPtsUn;
     std::vector<Eigen::Vector2d> mvPts;

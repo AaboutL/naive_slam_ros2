@@ -22,7 +22,7 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
     std::vector<cv::Point2f> vPtUnOffsets;
     std::vector<int> vChainLens;
 
-    mpFT->Track(cvImgPtr->image, vChainIds, vPtsUn, vPts, vPtUnOffsets, vChainLens);
+    mpFT->TrackHarris(cvImgPtr->image, vChainIds, vPtsUn, vPts, vPtUnOffsets, vChainLens);
 
     sensor_msgs::msg::PointCloud pcMsg = sensor_msgs::msg::PointCloud();
     pcMsg.header = img_msg->header;
@@ -58,7 +58,8 @@ void FeatureTrackingNode::FeatureTrackingCallback(const sensor_msgs::msg::Image:
     pc_publisher_->publish(pcMsg);
 
     if(mnPubNum != 0){
-        cv::Mat visTrack = mpFT->DrawMatches();
+        // cv::Mat visTrack = mpFT->DrawMatches();
+        cv::Mat visTrack = mpFT->DrawTrack();
         sensor_msgs::msg::Image::SharedPtr visTrackMsgPtr = 
             cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", visTrack).toImageMsg();
         visTrack_publisher_->publish(*visTrackMsgPtr.get());

@@ -38,6 +38,21 @@ public:
         return R;
     }
 
+    static Eigen::Vector3d Log(const Eigen::Matrix3d& R){
+        const double tr = R(0,0)+R(1,1)+R(2,2);
+        Eigen::Vector3d w;
+        w << (R(2,1)-R(1,2))/2, (R(0,2)-R(2,0))/2, (R(1,0)-R(0,1))/2;
+        const double costheta = (tr-1.0)*0.5f;
+        if(costheta>1 || costheta<-1)
+            return w;
+        const double theta = acos(costheta);
+        const double s = sin(theta);
+        if(fabs(s)<1e-5)
+            return w;
+        else
+            return theta*w/s;
+    }
+
 
 };
 

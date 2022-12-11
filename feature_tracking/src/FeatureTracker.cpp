@@ -33,6 +33,7 @@ FeatureTracker::FeatureTracker(const std::string &strParamFile):
     mGridCols = (int) std::ceil((float) mImgWidth / (float) mCellSize);
     mGridRows = (int) std::ceil((float) mImgHeight / (float) mCellSize);
     mpORBextractor = std::make_shared<ORBextractor>(fs["feature_num"], 1, 1, 20, 7);
+    mnFeatureNum = fs["feature_num"];
 }
 
 void FeatureTracker::Track(const cv::Mat& img, 
@@ -51,6 +52,35 @@ void FeatureTracker::Track(const cv::Mat& img,
         FindMatches();
         // DrawMatches("Matches");
         RejectByFundamental();
+        mPrevImageData = ImageData(mCurrImageData);
+    }
+
+    vChainIds = mCurrImageData.mvChainIds;
+    vPtsUn = mCurrImageData.mvPtsUn;
+    vPts = mCurrImageData.mvPts;
+    vChainLens = mCurrImageData.mvChainLens;
+    vPtUnOffsets = mCurrImageData.mvPtUnOffsets;
+}
+
+void FeatureTracker::TrackHarris(const cv::Mat& img, 
+                           std::vector<unsigned long>& vChainIds,
+                           std::vector<cv::Point2f>& vPtsUn,
+                           std::vector<cv::Point2f>& vPts,
+                           std::vector<cv::Point2f>& vPtUnOffsets,
+                           std::vector<int>& vChainLens){
+    mCurrImageData = ImageData(mnFeatureNum, img, mK, mDistCoef, mImgWidth, mImgHeight);
+    if(bFirst){
+        mPrevImageData = ImageData(mCurrImageData);
+        mPrevImageData.ExtractHarris();
+        mPrevImageData.UndistortKeyPoints1();
+        bFirst = false;
+    }
+    else{
+        FindMatchesHarris();
+        mCurrImageData.UndistortKeyPoints1();
+        RejectByFundamental();
+        mCurrImageData.ExtractHarris();
+        mCurrImageData.UndistortKeyPoints1();
         mPrevImageData = ImageData(mCurrImageData);
     }
 
@@ -122,6 +152,40 @@ void FeatureTracker::FindMatches(){
     }
 }
 
+void FeatureTracker::FindMatchesHarris(){
+    std::vector<uchar> vStatus;
+    std::vector<float> vErr;
+    std::vector<cv::Point2f> vPtsLK;
+    cv::calcOpticalFlowPyrLK(mPrevImageData.mImg, mCurrImageData.mImg, mPrevImageData.mvPts,
+                             vPtsLK, vStatus, vErr, cv::Size(21, 21), 3);
+
+    std::vector<int> vMatches12(mPrevImageData.N, -1);
+    std::vector<int> vMatches21(mCurrImageData.N, -1);
+    std::vector<int> vMatchDist21(mCurrImageData.N, 256);
+    int curPtId = -1;
+    for (int i = 0; i < mPrevImageData.N; i++) {
+        if (vStatus[i] != 1)
+            continue;
+        mCurrImageData.mvPts.emplace_back(vPtsLK[i]);
+        curPtId++;
+        int chainLen = mPrevImageData.mvChainLens[i];
+        if(chainLen < 2){ // new chain
+            chainLen++;
+            mPrevImageData.mvChainIds[i] = mnChainId;
+            mCurrImageData.mvChainIds[curPtId] = mnChainId;
+            mPrevImageData.mvChainLens[i] = chainLen;
+            mCurrImageData.mvChainLens[curPtId] = chainLen;
+            mnChainId++;
+        }
+        else{
+            mCurrImageData.mvChainIds[curPtId] = mPrevImageData.mvChainIds[i];
+            chainLen++;
+            mPrevImageData.mvChainLens[i] = chainLen;
+            mCurrImageData.mvChainLens[curPtId] = chainLen;
+        }
+    }
+}
+
 void FeatureTracker::RejectByFundamental(){
     std::unordered_map<int, std::pair<cv::Point2f, cv::Point2f>> matchedPtsUn;
     std::unordered_map<int, int> mChainIdWithPtId;
@@ -162,6 +226,56 @@ void FeatureTracker::RejectByFundamental(){
             mCurrImageData.mvPtUnOffsets[i] = cv::Point2f(0, 0);
         }
     }
+
+    // deal with previous image data
+    for(int i = 0; i < mPrevImageData.N; i++){
+        auto chainId = mPrevImageData.mvChainIds[i];
+        if(status[chainIdDict[chainId]] == 0){
+            mPrevImageData.mvChainLens[i]--;
+            if(mPrevImageData.mvChainLens[i] < 2){
+                mPrevImageData.mvChainIds[i] = -1;
+            }
+        }
+    }
+}
+
+void FeatureTracker::RejectByFundamentalHarris(){
+    std::unordered_map<int, std::pair<cv::Point2f, cv::Point2f>> matchedPtsUn;
+    std::unordered_map<int, int> mChainIdWithPtId;
+    for(int i = 0; i < mCurrImageData.N; i++){
+        if(mCurrImageData.mvChainLens[i] >= 2){
+            matchedPtsUn[mCurrImageData.mvChainIds[i]] = std::make_pair(cv::Point2f(), mCurrImageData.mvPtsUn[i]);
+            mChainIdWithPtId[mCurrImageData.mvChainIds[i]] = i;
+        }
+    }
+
+    for(int i = 0; i < mPrevImageData.N; i++){
+        if(matchedPtsUn.find(mPrevImageData.mvChainIds[i]) != matchedPtsUn.end()){
+            matchedPtsUn[mPrevImageData.mvChainIds[i]].first = mPrevImageData.mvPtsUn[i];
+            mCurrImageData.mvPtUnOffsets[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] = 
+                mCurrImageData.mvPtsUn[mChainIdWithPtId[mPrevImageData.mvChainIds[i]]] - mPrevImageData.mvPtsUn[i];
+        }
+    }
+
+    std::vector<cv::Point2f> vPrevPtsUn, vCurrPtsUn, vPG, vCG;
+    std::unordered_map<unsigned long, int> chainIdDict;
+    int i = 0;
+    for (auto& [k, v] : matchedPtsUn){
+        vPrevPtsUn.emplace_back(v.first);
+        vCurrPtsUn.emplace_back(v.second);
+        chainIdDict[k] = i;
+        i++;
+    }
+
+    std::vector<uchar> status;
+    cv::findFundamentalMat(vPrevPtsUn, vCurrPtsUn, cv::FM_RANSAC, 1, 0.99, status);
+
+    // deal with current image data
+    ReduceVector(mCurrImageData.mvPts, status);
+    ReduceVector(mCurrImageData.mvPtsUn, status);
+    ReduceVector(mCurrImageData.mvPtUnOffsets, status);
+    ReduceVector(mCurrImageData.mvChainIds, status);
+    ReduceVector(mCurrImageData.mvChainLens, status);
 
     // deal with previous image data
     for(int i = 0; i < mPrevImageData.N; i++){
@@ -225,6 +339,55 @@ cv::Mat FeatureTracker::DrawMatches(const std::string& winName){
     // cv::imshow(winName, imgShow);
     // cv::waitKey(10);
     return imgShow;
+}
+
+cv::Mat FeatureTracker::DrawTrack(const std::string& winName){
+    cv::Mat tmp;
+    cv::cvtColor(mCurrImageData.mImg, tmp, cv::COLOR_GRAY2BGR);
+    for(int i = 0; i < mCurrImageData.N; i++){
+        cv::circle(tmp, mCurrImageData.mvPts[i], 2, cv::Scalar(0, 0, 255));
+        if(mCurrImageData.mvChainLens[i] == 2){
+            cv::rectangle(tmp, mCurrImageData.mvPts[i] - cv::Point2f(3, 3), 
+                          mCurrImageData.mvPts[i] + cv::Point2f(3, 3), cv::Scalar(0, 155, 0));
+        }
+        if(mCurrImageData.mvChainLens[i] == 3){
+            cv::rectangle(tmp, mCurrImageData.mvPts[i] - cv::Point2f(3, 3), 
+                          mCurrImageData.mvPts[i] + cv::Point2f(3, 3), cv::Scalar(0, 200, 0));
+        }
+        if(mCurrImageData.mvChainLens[i] > 3){
+            cv::rectangle(tmp, mCurrImageData.mvPts[i] - cv::Point2f(3, 3), 
+                          mCurrImageData.mvPts[i] + cv::Point2f(3, 3), cv::Scalar(0, 255, 0));
+        }
+    }
+    cv::putText(tmp, std::to_string(mCurrImageData.N), cv::Point2i(20, 20), 1, 1, cv::Scalar(0, 0, 255));
+    cv::putText(tmp, std::to_string(mCurrImageData.mvPts.size()), cv::Point2i(20, 30), 1, 1, cv::Scalar(0, 0, 255));
+    return tmp;
+}
+
+void FeatureTracker::ReduceVector(std::vector<cv::Point2f>& v, std::vector<uchar>& status){
+    int j = 0;
+    for(int i = 0; i < v.size(); i++){
+        if(status[i])
+            v[j++] = v[i];
+    }
+    v.resize(j);
+}
+
+void FeatureTracker::ReduceVector(std::vector<int>& v, std::vector<uchar>& status){
+    int j = 0;
+    for(int i = 0; i < v.size(); i++){
+        if(status[i])
+            v[j++] = v[i];
+    }
+    v.resize(j);
+}
+void FeatureTracker::ReduceVector(std::vector<size_t>& v, std::vector<uchar>& status){
+    int j = 0;
+    for(int i = 0; i < v.size(); i++){
+        if(status[i])
+            v[j++] = v[i];
+    }
+    v.resize(j);
 }
 
 } // namespace Naive_SLAM_ROS

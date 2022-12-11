@@ -46,6 +46,7 @@ public:
                   const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias);
 
     void Integrate(const IMU& imu);
+    void Integrate1(const IMU& imu0, const IMU& imu1);
     void ReIntegrate(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias);
     void UpdateDeltaPVR(const Eigen::Vector3d& gyrBias, const Eigen::Vector3d& accBias,
                         Eigen::Vector3d& updatedDeltaP, Eigen::Vector3d& updatedDeltaV,
@@ -80,6 +81,7 @@ private:
     Eigen::Vector3d mDeltaV;
     Eigen::Vector3d mDeltaP;
     Eigen::Matrix<double, 15, 15> mCov;
+    Eigen::Matrix<double, 9, 9> mJacobian;
 
     // jacobian for bias update
     Eigen::Matrix3d mJRbg;

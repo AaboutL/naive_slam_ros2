@@ -16,7 +16,7 @@ Camera.height: 480
 
 Camera.fps: 20
 
-feature_num: 1000
+feature_num: 200
 pyramid_num: 8
 level_factor: 1.2
 FAST_th_init: 20
@@ -24,7 +24,7 @@ FAST_th_min: 7
 
 cell_size: 10
 
-WindowSize: 15
+WindowSize: 10
 
 IMU.GyrNoise: 1.6968e-04
 IMU.GyrBiasWalk: 1.9393e-05

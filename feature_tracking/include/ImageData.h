@@ -18,9 +18,14 @@ public:
               const cv::Mat& K, const cv::Mat& distCoef,
               int imgWidth, int imgHeight, int cellSize, int gridRows, int gridCols,
               std::shared_ptr<ORBextractor> pORBextractor);
+    ImageData(int featureNum, const cv::Mat &img, const cv::Mat& K, const cv::Mat& distCoef,
+              int imgWidth, int imgHeight);
 
     int SearchGrid(const cv::Point2f &pt2d, const cv::Mat &description,
                     float radius, int &matchedId);
+    void UndistortKeyPoints1();
+
+    void ExtractHarris();
 
 private:
     // void ExtractORB(const cv::Mat &img);

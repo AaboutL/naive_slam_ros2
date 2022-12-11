@@ -10,7 +10,7 @@ namespace Naive_SLAM_ROS{
 Initializer::Initializer(int matchNumTh, float parallaxTh, const Eigen::Matrix3d& K, FeatureManager* pFM,
                         Sophus::SE3d& Tbc):
 mMatchNumTh(matchNumTh), mParallaxTh(parallaxTh), mK(K), mInitIdx(0), mpFM(pFM), 
-mTbc(Tbc), mTcb(Tbc.inverse()){
+mTbc(Tbc), mTcb(Tbc.inverse()), mG(Eigen::Vector3d(0, 0, 9.81)){
 }
 
 void Initializer::Reset(){
@@ -25,9 +25,11 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     std::vector<unsigned long> vChainIds;
 
     std::vector<cv::Vec2f> cvPts2D1, cvPts2D2;
-    int matchFId = 1;
+    // int matchFId = 1;
+    int matchFId = vpFrames.size() - 1;
     int bGood = false;
-    for(; matchFId < vpFrames.size(); matchFId++){
+    // for(; matchFId < vpFrames.size(); matchFId++){
+    for(; matchFId > 0; matchFId--){
         vPts2D1.clear();
         vPts2D2.clear();
         vChainIds.clear();
@@ -51,7 +53,8 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
             cvPts2D2[i] = cv::Vec2f(vPts2D2[i][0], vPts2D2[i][1]);
         }
         std::sort(parallaxs.begin(), parallaxs.end());
-        if(parallaxs[matchNum / 2] >= 18){
+        std::cout << "[Initializer::VisualOnlyInitS1] medium parallax=" << parallaxs[matchNum / 2] << std::endl;
+        if(parallaxs[matchNum / 2] >= 30){
             bGood = true;
             std::cout << "[Initializer::VisualOnlyInitS1] Find good match id: " << matchFId << std::endl;
             break;
@@ -70,10 +73,12 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     Eigen::Vector3d t21;
     cv::cv2eigen(cvR21, R21);
     cv::cv2eigen(cvt21, t21);
-    vpFrames.back()->SetTcw(R21, t21);
+    // vpFrames.back()->SetTcw(R21, t21);
+    vpFrames[matchFId]->SetTcw(R21, t21);
 
     auto vPts3DNew = GeometryFunc::TriangulateTwoFrame(vpFrames.front()->mRcw, vpFrames.front()->mtcw, 
-        vpFrames.back()->mRcw, vpFrames.back()->mtcw, mK, vPts2D1, vPts2D2, vChainIds);
+        // vpFrames.back()->mRcw, vpFrames.back()->mtcw, mK, vPts2D1, vPts2D2, vChainIds);
+        vpFrames[matchFId]->mRcw, vpFrames[matchFId]->mtcw, mK, vPts2D1, vPts2D2, vChainIds);
     for(int i = 0; i < vChainIds.size(); i++){
         if(vPts3DNew[i] != Eigen::Vector3d(0, 0, 0)){
             mpFM->SetWorldPos(vChainIds[i], vPts3DNew[i]);
@@ -86,7 +91,7 @@ bool Initializer::VisualOnlyInitS1(std::vector<Frame*>& vpFrames){
     std::cout << "[Initializer::VisualOnlyInitS1] Done succeed" << std::endl;
 
     // norm frame pose and 3D point
-    NormalizePoseAndPoint(vpFrames.front(), vpFrames[matchFId], vPts3DNew, vChainIds);
+    // NormalizePoseAndPoint(vpFrames.front(), vpFrames[matchFId], vPts3DNew, vChainIds);
 
     return true;
 }
@@ -124,8 +129,10 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
         std::vector<Eigen::Vector2d> vPts2D, vPts1, vPts2;
         std::vector<unsigned long> vChainIds;
         int matchNum = mpFM->GetMatches(i - 1, i, vPts3D, vPts2D, vPts1, vPts2, vChainIds);
-        if(vPts3D.size() < 10)
+        if(vPts3D.size() < 10){
+            std::cout << "[Initializer::VisualOnlyInitS2] vPts3D num between " << i - 1 << " and " << i << " are not enough! Init failed" << std::endl;
             return false;
+        }
 
         Eigen::Matrix3d Rcw2 = vpFrames[i-1]->GetTcw().rotationMatrix();
         Eigen::Vector3d tcw2 = vpFrames[i-1]->GetTcw().translation();
@@ -162,7 +169,6 @@ bool Initializer::VisualOnlyInitS2(std::vector<Frame*>& vpFrames){
 
     int goodChainNum = Optimizer::VisualOnlyBA(vpFrames, mpFM, mK);
     std::cout << "[Initializer::VisualOnlyInitS2] Done succeed" << std::endl;
-    exit(0);
     return true;
 }
 
@@ -266,6 +272,203 @@ void Initializer::VisualInertialAlign(std::vector<Frame*>& vpFrames, const Eigen
     mpFM->UpdateWorldPos(Rgw, tgw, scale);
 }
 
+void Initializer::SolveGyrBias(std::vector<Frame *> &vpFrames)
+{
+    Eigen::Matrix3d A;
+    Eigen::Vector3d b, deltaGB;
+    A.setZero();
+    b.setZero();
+    cv::FileStorage fs("/media/psf/ShareParallels/deltaR.yaml", cv::FileStorage::READ);
+    // cv::FileStorage fs("/media/psf/ShareParallels/deltaJRg.yaml", cv::FileStorage::WRITE);
+    cv::Mat mRs = fs["R1"].mat();
+    std::vector<Eigen::Matrix3d> Rs;
+    for(int i = 0; i < 10; i++){
+        Eigen::Matrix3d R;
+        cv::cv2eigen(mRs.rowRange(i * 3, (i+1)* 3), R);
+        Rs.emplace_back(R);
+    }
+    cv::Mat JRgs = cv::Mat::zeros(30, 3, CV_32F);
+    for(int i = 0; i < vpFrames.size()-1; i++){
+        auto* pFi = vpFrames[i];
+        auto* pFj = vpFrames[i+1];
+        Eigen::Matrix3d tmp_A;
+        tmp_A.setZero();
+        Eigen::VectorXd tmp_b;
+        tmp_b.setZero();
+        Eigen::Matrix3d Rwbi = pFi->GetTwc().rotationMatrix() * pFi->GetTbc().rotationMatrix().transpose();
+        Eigen::Matrix3d Rwbj = pFj->GetTwc().rotationMatrix() * pFj->GetTbc().rotationMatrix().transpose();
+        Eigen::Matrix3d Rij = Rwbi.transpose() * Rwbj;
+        // Eigen::Matrix3d Rij = Rs[i];
+        std::cout << "[Initializer::SolveGyrBias] Rij: " << std::endl << Rij << std::endl;
+        std::cout << "[Initializer::SolveGyrBias] ypr: " << GeometryFunc::R2ypr(Rij).transpose() << std::endl;
+        tmp_A = pFj->mpPreintegrator->GetJRbg();
+        // cv::Mat tmp;
+        // cv::eigen2cv(tmp_A, tmp);
+        // tmp.copyTo(JRgs.rowRange(i * 3, (i+1)* 3));
+        // tmp_b = Sophus::SO3d(pFj->mpPreintegrator->GetDeltaR().transpose() * Rij).log();
+        tmp_b = LieAlg::Log(pFj->mpPreintegrator->GetDeltaR().transpose() * Rij);
 
+        A += tmp_A.transpose() * tmp_A;
+        b += tmp_A.transpose() * tmp_b;
+    }
+    // fs << "JRgs" << JRgs;
+    // fs.release();
+    deltaGB = A.ldlt().solve(b);
+    std::cout << "[Initializer::SolveGyrBias] deltaGB=" << deltaGB.transpose() << std::endl;
+    for(int i = 0; i < vpFrames.size(); i++){
+        vpFrames[i]->mpPreintegrator->ReIntegrate(deltaGB, Eigen::Vector3d::Zero());
+    }
+}
+
+bool Initializer::LinearAlignment(std::vector<Frame *> &vpFrames, Eigen::Vector3d& g, Eigen::VectorXd &x)
+{
+    int stateDim = vpFrames.size() * 3 + 3 + 1;
+    Eigen::MatrixXd A{stateDim, stateDim};
+    A.setZero();
+    Eigen::VectorXd b{stateDim};
+    b.setZero();
+    for(int i = 0; i < vpFrames.size() - 1; i++){
+        auto* pFi = vpFrames[i];
+        auto* pFj = vpFrames[i + 1];
+        Sophus::SE3d Tbiw = mTbc * pFi->GetTcw();
+        Sophus::SE3d Tbjw = mTbc * pFj->GetTcw();
+        Eigen::MatrixXd tmp_A(6, 10);
+        tmp_A.setZero();
+        Eigen::VectorXd tmp_b(6);
+        tmp_b.setZero();
+        double dt = pFj->mpPreintegrator->GetDeltaT();
+        tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
+        tmp_A.block<3, 3>(0, 6) = 0.5 * Tbiw.rotationMatrix() * dt * dt;
+        tmp_A.block<3, 1>(0, 9) = Tbiw.rotationMatrix() * (pFj->GetTwc().translation() - pFi->GetTwc().translation()) / 100.0;
+        tmp_b.block<3, 1>(0, 0) = pFj->mpPreintegrator->GetDeltaP() + Tbiw.rotationMatrix() * Tbjw.rotationMatrix().transpose()*mTbc.translation() - mTbc.translation();
+
+        tmp_A.block<3, 3>(3, 0) = Eigen::Matrix3d::Identity();
+        tmp_A.block<3, 3>(3, 3) = Tbiw.rotationMatrix() * Tbjw.rotationMatrix().transpose();
+        tmp_A.block<3, 3>(3, 6) = Tbiw.rotationMatrix() * dt;
+        tmp_b.block<3, 1>(3, 0) = pFj->mpPreintegrator->GetDeltaV();
+
+        Eigen::MatrixXd r_A = tmp_A.transpose() * tmp_A;
+        Eigen::VectorXd r_b = tmp_A.transpose() * tmp_b;
+        A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
+        b.segment<6>(i * 3) += r_b.head<6>();
+        A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
+        b.tail<4>() += r_b.tail<4>();
+        A.block<6, 4>(i * 3, stateDim - 4) += r_A.topRightCorner<6, 4>();
+        A.block<4, 6>(stateDim - 4, i * 3) += r_A.bottomLeftCorner<4, 6>();
+    }
+    A = A * 1000;
+    b = b * 1000;
+    x = A.ldlt().solve(b);
+
+    double s = x(stateDim - 1) / 100.0;
+    std::cout << "[Initializer::LinearAlignment] scale="<< s << std::endl;
+    g = x.segment<3>(stateDim - 4);
+    std::cout << "[Initializer::LinearAlignment] g="<< g.transpose() << "  norm=" << g.norm() << std::endl;
+    if(fabs(g.norm() - mG.norm()) > 1.0 || s < 0)
+    {
+        return false;
+    }
+
+    RefineGravity(vpFrames, g, x);
+    s = x.tail<1>()(0) / 100.0;
+    x.tail<1>()(0) = s;
+    std::cout << "[Initializer::LinearAlignment] after refine scale="<< s << std::endl;
+    std::cout << "[Initializer::LinearAlignment] after refine g="<< g.transpose() << "  norm=" << g.norm() << std::endl;
+    if(s < 0.0)
+        return false;
+    return true;
+}
+
+Eigen::MatrixXd Initializer::TangentBasis(const Eigen::Vector3d &g0){
+    Eigen::Vector3d b, c;
+    Eigen::Vector3d a = g0.normalized();
+    Eigen::Vector3d tmp(0, 0, 1);
+    if(a == tmp)
+        tmp << 1, 0, 0;
+    b = (tmp - a * (a.transpose() * tmp)).normalized();
+    c = a.cross(b);
+    Eigen::MatrixXd bc(3, 2);
+    bc.block<3, 1>(0, 0) = b;
+    bc.block<3, 1>(0, 1) = c;
+    return bc;
+}
+
+void Initializer::RefineGravity(std::vector<Frame *> &vpFrames, Eigen::Vector3d& g, Eigen::VectorXd &x)
+{
+    Eigen::Vector3d g0 = g.normalized() * mG.norm(); // direction of g, magnitute of mG
+    Eigen::Vector3d lx, ly;
+    int stateDim = vpFrames.size() * 3 + 2 + 1;
+    Eigen::MatrixXd A{stateDim, stateDim};
+    A.setZero();
+    Eigen::VectorXd b{stateDim};
+    b.setZero();
+
+    for (int k = 0; k < 4; k++){
+        Eigen::MatrixXd lxly(3, 2);
+        lxly = TangentBasis(g0);
+
+        for(int i = 0; i < vpFrames.size() - 1; i++){
+            auto* pFi = vpFrames[i];
+            auto* pFj = vpFrames[i + 1];
+            Sophus::SE3d Tbiw = mTbc * pFi->GetTcw();
+            Sophus::SE3d Tbjw = mTbc * pFj->GetTcw();
+            Eigen::MatrixXd tmp_A(6, 9);
+            tmp_A.setZero();
+            Eigen::VectorXd tmp_b(6);
+            tmp_b.setZero();
+            double dt = pFj->mpPreintegrator->GetDeltaT();
+            tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 2>(0, 6) = 0.5 * Tbiw.rotationMatrix() * dt * dt * lxly;
+            tmp_A.block<3, 1>(0, 8) = Tbiw.rotationMatrix() * (pFj->GetTwc().translation() - pFi->GetTwc().translation()) / 100.0;
+            tmp_b.block<3, 1>(0, 0) = pFj->mpPreintegrator->GetDeltaP() + Tbiw.rotationMatrix() * Tbjw.rotationMatrix().transpose()*mTbc.translation() - mTbc.translation()
+                                      - Tbiw.rotationMatrix() * dt * dt * 0.5 * g0;
+
+            tmp_A.block<3, 3>(3, 0) = Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 3>(3, 3) = Tbiw.rotationMatrix() * Tbjw.rotationMatrix().transpose();
+            tmp_A.block<3, 2>(3, 6) = Tbiw.rotationMatrix() * dt * lxly;
+            tmp_b.block<3, 1>(3, 0) = pFj->mpPreintegrator->GetDeltaV() - Tbiw.rotationMatrix() * dt * g0;
+
+            Eigen::MatrixXd r_A = tmp_A.transpose() * tmp_A;
+            Eigen::VectorXd r_b = tmp_A.transpose() * tmp_b;
+            A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
+            b.segment<6>(i * 3) += r_b.head<6>();
+            A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
+            b.tail<4>() += r_b.tail<4>();
+            A.block<6, 3>(i * 3, stateDim - 3) += r_A.topRightCorner<6, 3>();
+            A.block<3, 6>(stateDim - 3, i * 3) += r_A.bottomLeftCorner<3, 6>();
+        }
+        A = A * 1000.0;
+        b = b * 1000.0;
+        x = A.ldlt().solve(b);
+        Eigen::VectorXd dg = x.segment<2>(stateDim - 3);
+        g0 = (g0 + lxly * dg).normalized() * mG.norm();
+    }
+    g = g0;
+}
+
+bool Initializer::VIAlign(std::vector<Frame *> &vpFrames){
+    SolveGyrBias(vpFrames);
+    Eigen::Vector3d g; 
+    Eigen::VectorXd x;
+    bool flag = LinearAlignment(vpFrames, g, x);
+    if(!flag)
+        return false;
+
+    Eigen::Vector3d mGN = mG.normalized();
+    Eigen::Vector3d gN = g.normalized();
+    Eigen::Vector3d v = mGN.normalized().cross(gN.normalized());
+    v = v / v.norm();
+    double ang = acos(mGN.dot(gN));
+    Eigen::Vector3d vzg = ang * v;
+    // Rwg = Sophus::SO3d::exp(vzg).matrix();
+    Eigen::Matrix3d Rwg = LieAlg::Exp(vzg);
+    VisualInertialAlign(vpFrames, Rwg, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), x.tail<1>()(0));
+
+    Eigen::Vector3d gyrBias = vpFrames.front()->mpPreintegrator->GetGyrBias();
+    Eigen::Vector3d accBias;
+    accBias.setZero();
+    Optimizer::VisualInertialInitBA(vpFrames, mpFM, mK, gyrBias, accBias, 1e5, 1e2);
+    return true;
+}
 
 } // namespace Naive_SLAM_ROS

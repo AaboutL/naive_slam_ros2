@@ -36,6 +36,8 @@ public:
         const Eigen::Matrix3d& Rcw2, const Eigen::Vector3d& tcw2, const Eigen::Matrix3d& K,
         const std::vector<Eigen::Vector2d>& vPts2D1, const std::vector<Eigen::Vector2d>& vPts2D2,
         const std::vector<unsigned long>& vChainIds);
+
+    static Eigen::Vector3d R2ypr(const Eigen::Matrix3d& R);
 };
     
 } // namespace Naive_SLAM_ROS

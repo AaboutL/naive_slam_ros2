@@ -41,7 +41,8 @@ mpPreintegrator(pF->mpPreintegrator), mVelocity(pF->mVelocity){
 }
 
 Frame::Frame(const PointCloud& pc, const Sophus::SE3d& Tbc):
-mdTimestamp(pc.mdTimestamp), mvChainIds(pc.mvChainIds), mvPtsUn(pc.mvPtsUn), mvPts(pc.mvPts), mvPtUnOffsets(pc.mvPtUnOffsets){
+mdTimestamp(pc.mdTimestamp), msTimestamp(pc.msTimestamp),
+mvChainIds(pc.mvChainIds), mvPtsUn(pc.mvPtsUn), mvPts(pc.mvPts), mvPtUnOffsets(pc.mvPtUnOffsets){
 
     SetTcw(Sophus::SE3d());
 
@@ -64,7 +65,7 @@ void Frame::SetTcw(const Eigen::Matrix4d& Tcw){
 
     mTwc = mTcw.inverse();
     mRwc = mTwc.rotationMatrix();
-    mtwc = mTwc.translation();;
+    mtwc = mTwc.translation();
 }
 
 void Frame::SetTcw(const Sophus::SE3d& Tcw){
@@ -103,8 +104,16 @@ Sophus::SE3d Frame::GetTbc() const{
     return mTbc;
 }
 
+Sophus::SE3d Frame::GetTcb() const{
+    return mTcb;
+}
+
 Sophus::SE3d Frame::GetTcw() const{
     return mTcw;
+}
+
+Sophus::SE3d Frame::GetTwc() const{
+    return mTwc;
 }
 
 Eigen::Vector3d Frame::GetVelocity() const{

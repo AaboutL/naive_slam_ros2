@@ -22,6 +22,7 @@ public:
     StateEstimator(const std::string& strParamFile);
 
     enum State{
+        WAIT = 0,
         INIT = 1,
         ESTIMATE = 2,
         LOST = 3
@@ -29,7 +30,8 @@ public:
 
     enum MargFlag{
         MARG_OLD = 0,
-        MARG_SECOND_LASTEST = 1
+        MARG_SECOND_LASTEST = 1,
+        SLEEP = 2
     };
 
     void Estimate(const std::pair<PointCloud, std::vector<IMU>>& pMeas);
@@ -45,7 +47,10 @@ public:
     bool CheckIMUObservability();
     void SelectMarginalizePosition();
 
+    int IsInitKeyframe();
+
     bool SolveOdometry();
+    
 
 private:
     int mWindowSize;

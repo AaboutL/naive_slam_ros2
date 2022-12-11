@@ -53,6 +53,15 @@ ImageData::ImageData(const cv::Mat &img,
     AssignGrid();
 }
 
+ImageData::ImageData(int featureNum, const cv::Mat &img, const cv::Mat& K, const cv::Mat& distCoef,
+              int imgWidth, int imgHeight):
+        mImg(img.clone()), mK(K.clone()), mDistCoef(distCoef.clone()),
+        mImgWidth(imgWidth), mImgHeight(imgHeight), N(featureNum){
+    mvChainIds.resize(N, -1);
+    mvChainLens.resize(N, 1);
+    mvPtUnOffsets.resize(N, cv::Point2f(0, 0));
+}
+
 // void ImageData::ExtractORB(const cv::Mat &img) {
 //     (*mpORBextractor)(img, cv::Mat(), mvKPs, mDescriptors);
 // }
@@ -79,6 +88,58 @@ void ImageData::UndistortKeyPoints() {
         kp.pt.x = mat.at<float>(i, 0);
         kp.pt.y = mat.at<float>(i, 1);
         mvKPsUn[i] = kp;
+    }
+}
+
+void ImageData::UndistortKeyPoints1() {
+    if (mvPts.empty()) {
+        std::cout << "No points to undistorted!" << std::endl;
+        exit(0);
+    }
+
+    cv::Mat mat(mvPts.size(), 2, CV_32F);
+    for (int i = 0; i < mvPts.size(); i++) {
+        mat.at<float>(i, 0) = mvPts[i].x;
+        mat.at<float>(i, 1) = mvPts[i].y;
+    }
+
+    mat = mat.reshape(2);
+    cv::undistortPoints(mat, mat, mK, mDistCoef, cv::Mat(), mK);
+    mat = mat.reshape(1);
+
+    mvPtsUn.resize(mvPts.size(), cv::Point2f(0, 0));
+    for (int i = 0; i < mvPts.size(); i++) {
+        cv::Point2f ptUn(mat.at<float>(i, 0), mat.at<float>(i, 1));
+        mvPtsUn[i] = ptUn;
+    }
+}
+
+void ImageData::ExtractHarris(){
+    int existPtsNum = mvPts.size();
+    int needNum = N - existPtsNum;
+    if(needNum == 0) 
+        return;
+    cv::Mat mask;
+    if(needNum != N){
+        mask = cv::Mat(mImgHeight, mImgWidth, CV_8UC1, cv::Scalar(255));
+        for(auto& pt: mvPts){
+            if(mask.at<uchar>(pt) == 255){
+                cv::circle(mask, pt, 30, 0, -1);
+            }
+        }
+    }
+    std::vector<cv::Point2f> vPts;
+    cv::goodFeaturesToTrack(mImg, vPts, needNum, 0.01, 30, mask);
+    if(needNum == N){
+        mvPts = vPts;
+    }
+    else{
+        for(auto& pt : vPts){
+            mvPts.emplace_back(pt);
+            mvPtUnOffsets.emplace_back(cv::Point2f(0, 0));
+            mvChainIds.emplace_back(-1);
+            mvChainLens.emplace_back(1);
+        }
     }
 }
 

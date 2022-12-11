@@ -38,6 +38,7 @@ public:
     Eigen::Vector2d GetOffset() const;
     void EraseFront();
     void EraseBack();
+    void EraseBack(int windowSize);
 
 public:
     unsigned long mChainId;
@@ -58,6 +59,7 @@ public:
 
     void EraseFront();
     void EraseBack();
+    void EraseBack(int windowSize);
 
     int GetMatches(int pos1, int pos2, std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>>& vMatches) const;
     int GetMatches(int pos1, int pos2, std::vector<Eigen::Vector2d>& vPts1, std::vector<Eigen::Vector2d>& vPts2, 

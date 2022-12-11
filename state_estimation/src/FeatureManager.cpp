@@ -67,6 +67,16 @@ void FeatureChain::EraseBack() {
         mvFeatures.erase(last);
     }
 }
+void FeatureChain::EraseBack(int windowSize) {
+    if(mStartIdx + mvFeatures.size() == windowSize){
+        auto last = mvFeatures.end() - 1;
+        mvFeatures.erase(last);
+    }
+    if(mStartIdx + mvFeatures.size() == windowSize + 1){
+        auto last = mvFeatures.end() - 2;
+        mvFeatures.erase(last);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +144,24 @@ void FeatureManager::EraseBack() {
     auto iter = mmChains.begin();
     while(iter != mmChains.end()){
         iter->second.EraseBack();
+        if(iter->second.GetChainLen() == 0 || iter->second.GetChainLen() == 1){
+            mmChains.erase(iter++);
+        }
+        else{
+            iter++;
+        }
+    }
+}
+
+void FeatureManager::EraseBack(int windowSize) {
+    // for(auto& [chainId, chain] : mmChains){
+    //     chain.EraseBack();
+    //     if(chain.GetChainLen() == 0 || chain.GetChainLen() == 1)
+    //         mmChains.erase(chainId);
+    // }
+    auto iter = mmChains.begin();
+    while(iter != mmChains.end()){
+        iter->second.EraseBack(windowSize);
         if(iter->second.GetChainLen() == 0 || iter->second.GetChainLen() == 1){
             mmChains.erase(iter++);
         }

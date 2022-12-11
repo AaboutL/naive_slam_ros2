@@ -140,6 +140,7 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
     float sum_diff2 = 0;
     std::vector<std::pair<int, unsigned long>> vVid2Cid;
     std::vector<std::pair<int, int>> vVid2Pid;
+    std::unordered_map<int, std::vector<g2o::EdgeSE3ProjectXYZ*>> mVid2Edge;
     for(int i = 0; i < vPts3D.size(); i++){
         if(abs(vPts3D[i][2]) > EPSILON && pFM->IsChainPosSet(vChainIds[i])){
             vVid2Cid.emplace_back(std::make_pair(vertexIdx, vChainIds[i]));
@@ -179,6 +180,9 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
             e2->cy = K(1, 2);
             optimizer.addEdge(e2);
 
+            std::vector<g2o::EdgeSE3ProjectXYZ*> edges{e1, e2};
+            mVid2Edge[vertexIdx] = edges;
+
             vertexIdx++;
 
             // calc errors
@@ -209,13 +213,19 @@ int Optimizer::VisualOnlyInitBA(Frame* frame1, Frame* frame2,
     frame1->SetTcw(vSE31->estimate().to_homogeneous_matrix());
     frame2->SetTcw(vSE32->estimate().to_homogeneous_matrix());
 
+    int nGoodPt = 0;
     for(auto& p : vVid2Cid){
         auto vertexId = p.first;
+        if(mVid2Edge[vertexId][0]->chi2() > 5.991 || mVid2Edge[vertexId][1]->chi2() > 5.991){
+            continue;
+        }
+        nGoodPt++;
         auto chainId = p.second;
         auto *vPoint = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(vertexId));
         pFM->SetWorldPos(chainId, vPoint->estimate());
         pFM->SetChainGood(chainId, true);
     }
+    std::cout << "[Optimizer::VisualOnlyInitBA] good pts num=" << nGoodPt << "  total pts num=" << vVid2Cid.size() << std::endl;
     std::cout << "[Optimizer::VisualOnlyInitBA] finished" << std::endl;
     return 1;
 }
@@ -471,9 +481,9 @@ int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManage
         VertexPose* vPose = new VertexPose(pF->GetTbc(), pF->GetTcw());
         // VertexPose* vPose = new VertexPose(Sophus::SE3d(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero()), pF->GetTcw());
         vPose->setId(i);
-        // vPose->setFixed(true);
+        vPose->setFixed(true);
         // vPose->setFixed(false);
-        vPose->setFixed(i==0);
+        // vPose->setFixed(i==0);
         optimizer.addVertex(vPose);
         vPoses.emplace_back(vPose);
 
@@ -491,7 +501,8 @@ int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManage
 
     VertexAccBias* vAB = new VertexAccBias(accBias);
     vAB->setId(usedFrameNum * 2 + 1);
-    vAB->setFixed(false);
+    // vAB->setFixed(false);
+    vAB->setFixed(true);
     optimizer.addVertex(vAB);
 
     // prior edge
@@ -588,6 +599,10 @@ int Optimizer::VisualInertialInitBA(std::vector<Frame*>& vpFrames, FeatureManage
         vpFrames[i]->SetTcw(vPoses[i]->estimate().mTcw);
         vpFrames[i]->SetVelocity(vVels[i]->estimate());
         vpFrames[i]->mpPreintegrator->ReIntegrate(vGB->estimate(), vAB->estimate());
+        std::cout << "[Optimizer::VisualInertialInitBA] tcw: " << vPoses[i]->estimate().mTcw.translation().transpose() << std::endl;
+        std::cout << "[Optimizer::VisualInertialInitBA] vel: " << vVels[i]->estimate().transpose() << std::endl;
+        std::cout << "[Optimizer::VisualInertialInitBA] gyrbias: " << vGB->estimate().transpose() << std::endl;
+        std::cout << "[Optimizer::VisualInertialInitBA] accbias: " << vAB->estimate().transpose() << std::endl;
     }
 
     sum_chi2 = 0;
